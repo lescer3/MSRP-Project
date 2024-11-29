@@ -9,6 +9,19 @@ output:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo=TRUE, 
+                      cache=FALSE, 
+                      fig.width=7, 
+                      fig.height=5,
+                      fig.align='center', 
+                      eval=eval)
+library(dplyr)
+library(naniar)
+library(tidyr)
+library(ggplot2)
+library(forcats)
+library(corrplot)
+library(tidymodels)
 ```
 
 
@@ -19,7 +32,14 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Introduction
 
-The purpose of this project is to build a machine learning model to predict the Manufacturer’s Suggested Retail Price (MSRP) of cars based on various features such as make, year, and engine fuel type. By examining these features, I aim to identify the most significant factors that contribute to the price variations across models. Additionally, I will investigate whether there is a significant price difference among many transmission types such as automated manual, automatic, direct drive, and manual. This analysis will provide insights into the potential effects of transmission type on overall cost. 
+The purpose of this project is to build a machine learning model to predict the Manufacturer’s Suggested Retail Price (MSRP) of cars based on various features such as make, year, and engine fuel type. Beyond prediction, this project aims to address two questions:
+
+- What are the most important car features that influence the price of a car?
+- Is there a significant price difference between different types of transmissions?
+
+By examining the relationships between the predictors and MSRP, I aim to identify the factors that contribute to the price variations across models and quantify the impact of transmission types on MSRP. 
+
+Additionally, I will investigate whether there is a significant price difference among many transmission types such as automated manual, automatic, direct drive, and manual. This analysis will provide insights into the potential effects of transmission type on overall cost. 
 
 ![image](~/Desktop/MSRP1.pdf){width=30%}
 
@@ -152,7 +172,7 @@ ggplot(NA_car_data, aes(Engine.HP)) +
 
 ```
 
-As you can see the `MSRP` boxplot reveals significant outliers, with values ranging from approximately \$250,000 to \$2,000,000 (in thousands). In the `highway.MPG` variable, there is a single extreme outlier approximately 350 MPG, which is unrealistic. Lastly, `Engine.HP` has outliers ranging from 500 to 1,000 horse power. 
+As you can see the `MSRP` boxplot reveals significant outliers, with values ranging from approximately \$250,000 to \$2,000,000. In the `highway.MPG` variable, there is a single extreme outlier approximately 350 MPG, which is unrealistic. Lastly, `Engine.HP` has outliers ranging from 500 to 1,000 horse power. 
 
 Let's transform the data to exclude the extreme outliers.
 ```{r}
@@ -176,6 +196,7 @@ outliers_removed_car_NA <- NA_car_data %>%
 
 
 ```{r}
+#install.packages("ggplot2")
 library(ggplot2)
 
 ggplot(outliers_removed_car_NA, aes(MSRP)) +
@@ -191,6 +212,7 @@ Above are the same boxplots after applying the transformations to the data. Some
 ## Transformation
 
 ```{r}
+library(forcats)
 converted_car_data_NA <- outliers_removed_car_NA %>% 
     mutate(
         Market.Category = fct_other(Market.Category, 
@@ -240,14 +262,16 @@ Examining the whiskers,"MANUAL" has a longer spread toward the maximum, while "A
 
 ```{r}
 common_10 <- converted_car_data_NA %>% 
-  filter(Make == c("BMW", "Mercedes-Benz", "Lincoln", "Lexus", "Infiniti", "Honda", "Toyota", 
+  filter(Make %in% c("BMW", "Mercedes-Benz", "Lincoln", "Lexus", "Infiniti", "Honda", "Toyota", 
                    "Nissan", "Ford", "Subaru"))
 ggplot(common_10, aes(x = Make, y = MSRP)) +
   geom_boxplot(fill = "purple") + xlab("Car Make") + ylab("MSRP (in thousands)")
 ```
 
-The boxplots compare the `MSRP` distributions for five luxury and five non-luxury car `Make`s. As we can see, Mercedes-Benz has a greater IQR than the other car makes.  
+The boxplots compare the `MSRP` distributions for five luxury and five non-luxury car `Make`s. As we can see, Mercedes-Benz has a greater IQR than the other car makes. 
+
 - Mercedes-Benz: The median `MSRP` is approximately \$42,000, with an IQR ranging from around \$5,000 and \$55,000. 
+
 - Toyota: The median `MSRP` is around \$30,000, with an IQR ranging from around \$23,000 and \$34,000 with an outlier around \$64,000. 
 
 ### MSRP vs Category
@@ -299,7 +323,8 @@ It is time to set up our models. This is where split our data and fit the traini
 
 ## Data Split
 
-The first step would be to split the data into training and testing data sets. The training data is used to train the program by allowing it to see the response of 70% of the data and the remaining unseen 30% to the testing data. I chose these proportions to allow the data to learn and to avoid over-fitting. This is important as it will help the program create a more accurate test result. The split is stratified on the `MSRP` and I set the random seed to keep working with the same data throughout the models.
+The first step would be to split the data into training and testing data sets. The training data is used to train the model to estimate `MSRP` based on observed data (pg. 21, ISRL book). The testing data, which contains the unseen observations,is used to test the model's accuracy (pg. 30).I have chosen a 70/30 split, assigning 70% to the training set and 30% to the testing set. This split will help the model train while reserving a portion to test the accuracy on the remaining observations, helping to prevent over-fitting. The split is stratified on the `MSRP` variable to ensure the same distribution on both the training and testing sets, and a random seed to reproduce my results consistently.
+
 
 ```{r}
 set.seed(314)
@@ -320,8 +345,156 @@ dim(NA_car_testing)
 
 The observations for the training and testing data sets are adequate. 
 
-### K-Fold Cross Validation 
+## Recipe
+
+Throughout our analysis, different recipes will be used for each model to accommodate their specific requirements. For stepwise linear regression,  10 predictors will be used: `Make`, `Year`, `Engine.Fuel.Type`, `Engine.HP`, `Transmission.Type`, `Driven_Wheels`, `Market.Category`, `Vehicle.Size`, `Vehicle.Style`, and `city.mpg`. 
+
+For lasso regression, random forest, and PCA regression, all available predictors will be used. In addition to the 10 mentioned above, the other predictors are: `Model`, `Engine.Cylinders`, `Number.of.Doors`, `highway.MPG`, `Popularity`, and `Category`.
+
+To deal with the number of categories within Make and Model for lasso regression, random forest, and PCA regression, levels with fewer than 10% of the data were grouped into an "Other" category. This reduces complexity for the models and not produce unreliable coefficient estimates.
+
+```{r}
+#Stepwise Regression
+NA_stepwise_car_recipe <- recipe(MSRP ~ Make + Year + Engine.Fuel.Type + Engine.HP + 
+                       Transmission.Type + Driven_Wheels + Market.Category + Vehicle.Size + 
+                       Vehicle.Style + city.mpg, data = NA_car_training) %>% 
+  step_dummy(Make, Engine.Fuel.Type, Transmission.Type, 
+             Driven_Wheels, Market.Category, 
+            Vehicle.Style, Vehicle.Size)
+
+#Lasso Regression
+lasso_recipe_NA <- recipe(MSRP ~ ., data = NA_car_training) %>% 
+  step_other(Model, threshold = 0.10) %>%
+  step_dummy(Make, Model, Engine.Fuel.Type, Transmission.Type, 
+             Driven_Wheels, Market.Category, Vehicle.Style, Vehicle.Size, Category) %>%
+  step_zv(all_predictors()) %>% 
+  step_center(all_predictors()) %>% 
+  step_scale(all_predictors())
+
+#Random Forest
+rf_recipe_NA <- recipe(MSRP ~ ., data = NA_car_training) %>% 
+  step_other(Model, threshold = 0.10) %>%
+  step_dummy(Make, Model, Engine.Fuel.Type, Transmission.Type, 
+             Driven_Wheels, Market.Category, Vehicle.Style, Vehicle.Size, Category) %>%
+  step_zv(all_predictors())
+
+#PCA Regression
+pca_recipe_NA <- recipe(MSRP ~ ., data = NA_car_training) %>% 
+  step_other(Make, Model, threshold = 0.10) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_zv(all_predictors()) %>% 
+  step_center(all_predictors()) %>% 
+  step_scale(all_predictors()) %>% 
+  step_pca(all_predictors(), num_comp = 5)
+```
+
+We are using K-Fold Cross Validation, which randomly divides the set of observations into 5 folds that are approximately equal size (pg. 203). The first fold is treated as a validation set, a set of data used to train, and is applied to the remaining k-1 folds. A performance metric is then computed from the remaining observations used to evaluate the model. This process is repeated 5 times with a different group of observations used as a validation set. Finally, it then averages the test error across all folds.
+
+## K-Fold Cross Validation 
 ```{r}
 NA_car_folds <- vfold_cv(NA_car_training, v = 5, strata = MSRP)
 ```
 
+# Model Building
+
+In this section, we implement several models to predict `MSRP` and to learn more about variables influencing car prices. I will be using Root Mean Square Error (RMSE) as my metric for all of the models. RMSE is used to quantify how far predictions are from the true values. As mentioned above in the recipe building, I will be using Stepwise Linear Regression, Lasso Regression, Random Forest, and PCA Regression. 
+
+- Stepwise Regression: This model identifies significant predictors to the response (MSRP).
+- Lasso Regression: This model performs variable selection and regularization. 
+
+## Fitting the Models 
+
+The models used are going to have the same procedure. Here are the steps:
+
+1. 
+```{r}
+#Stepwise Regression
+NA_stepwise_model <- linear_reg() %>% 
+  set_engine("lm") %>% 
+  set_mode("regression")
+
+#Lasso Regression
+lasso_model_NA <- linear_reg(
+  mixture = 1,
+  penalty = tune()
+) %>% 
+  set_mode("regression") %>% 
+  set_engine("glmnet")
+
+#Random Forest
+rf_model_NA <- rand_forest(
+  mtry = tune(),
+  trees = tune(),
+  min_n = tune()
+) %>% 
+  set_engine("ranger", importance = "impurity") %>% 
+  set_mode("regression")
+
+#PCA Regression 
+pca_model_NA <- linear_reg() %>% 
+  set_engine("lm") %>% 
+  set_mode("regression")
+
+```
+
+2. 
+```{r}
+#Stepwise Regression
+NA_stepwise_workflow <- workflow() %>% 
+  add_model(NA_stepwise_model) %>% 
+  add_recipe(NA_stepwise_car_recipe)
+
+#Lasso Regression
+lasso_workflow_NA <- workflow() %>% 
+  add_model(lasso_model_NA) %>% 
+  add_recipe(lasso_recipe_NA)
+
+#Random Forest
+rf_workflow_NA <- workflow() %>% 
+  add_model(rf_model_NA) %>% 
+  add_recipe(rf_recipe_NA)
+
+#PCA Regression
+pca_workflow_NA <- workflow() %>% 
+  add_model(pca_model_NA) %>% 
+  add_recipe(pca_recipe_NA)
+```
+
+3. 
+```{r}
+#Lasso Regression
+lasso_grid_NA <- grid_regular(penalty(), levels = 30)
+
+#Random Forest
+rf_grid_NA <- grid_regular(mtry(range = c(1,4)),
+                        trees(range = c(300, 650)),
+                        min_n(range = c(5, 15)),
+                        levels = 10)
+
+```
+
+4. 
+```{r}
+#Stepwise Regression
+NA_stepwise_fit <- fit_resamples(NA_stepwise_workflow, NA_car_folds)
+
+#Lasso Regression
+lasso_tunegrid_NA <- tune_grid(
+  lasso_workflow_NA,
+  resamples = NA_car_folds,
+  grid = lasso_grid_NA
+)
+
+#Random Forest
+rf_tune_NA <- tune_grid(
+  rf_workflow_NA,
+  resamples = NA_car_folds,
+  grid = rf_grid_NA,
+  metrics = metric_set(rmse, rsq)
+)
+
+#PCA Regression
+pca_fit_NA <- fit_resamples(pca_workflow_NA, NA_car_folds)
+```
+
+5. 
