@@ -1,0 +1,909 @@
+---
+title: "ProjectTrials"
+author: "Leslie Cervantes Rivera"
+date: "2024-11-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(tidymodels)
+library(corrplot)
+library(forcats)
+library(car)
+```
+
+```{r}
+car_data <- read.csv("~/Desktop/data.csv")
+car_data <- car_data %>% 
+  mutate(Category = ifelse(Make %in% c("BMW", "Audi", "Mercedes-Benz", "Volvo", "Ferrari", 
+          "Alfa Romero", "McLaren", "Maybach","Porsche", "Saab", "Cadillac", "Bentley", "Lamborghini", 
+          "Lincoln", "Rolls-Royce", "Buick", "Maserati","Lexus", "Aston Martin", "Land Rover",
+          "Lotus", "Infiniti", "Genesis", "Bugatti"),
+                         "Luxury",
+                         "Non-Luxury"))
+
+updated_car_data <- car_data %>% 
+  drop_na(Engine.HP, Engine.Cylinders, Number.of.Doors) 
+
+NA_car_data <- subset(updated_car_data, !( Engine.Fuel.Type == "" | Engine.Cylinders == 0 | Transmission.Type == "UNKNOWN"))
+```
+
+```{r}
+boxplot(NA_car_data$Popularity)
+boxplot(NA_car_data$MSRP)
+boxplot(NA_car_data$highway.MPG)
+boxplot(NA_car_data$city.mpg)
+boxplot(NA_car_data$Engine.HP)
+
+IQR_HP_NA <- IQR(updated_car_data$Engine.HP)
+lower_HP_NA <- quantile(updated_car_data$Engine.HP, 0.25) - 2.0 * IQR_HP_NA
+upper_HP_NA <- quantile(updated_car_data$Engine.HP, 0.75) + 2.5 * IQR_HP_NA
+
+IQR_highway_NA <- IQR(updated_car_data$highway.MPG)
+lower_highway_NA <- quantile(updated_car_data$highway.MPG, 0.25) - 3.0 * IQR_highway_NA
+upper_highway_NA <- quantile(updated_car_data$highway.MPG, 0.75) + 4.0 * IQR_highway_NA
+
+IQR_MSRP_NA <- IQR(updated_car_data$MSRP)
+lower_MSRP_NA <- quantile(updated_car_data$MSRP, 0.25) - 3.0 * IQR_MSRP_NA
+upper_MSRP_NA <- quantile(updated_car_data$MSRP, 0.75) + 2.0 * IQR_MSRP_NA
+
+outliers_removed_car_NA <- NA_car_data %>% 
+  filter(Engine.HP >= lower_HP_NA & Engine.HP <= upper_HP_NA) %>% 
+  filter(highway.MPG >= lower_highway_NA & highway.MPG <= upper_highway_NA) %>% 
+  filter(MSRP >= lower_MSRP_NA & MSRP <= upper_MSRP_NA)
+
+boxplot(outliers_removed_car_NA$Popularity)
+boxplot(outliers_removed_car_NA$MSRP)
+boxplot(outliers_removed_car_NA$highway.MPG)
+#boxplot(outliers_removed_car_NA$city.mpg)
+boxplot(outliers_removed_car_NA$Engine.HP)
+```
+
+```{r}
+converted_car_data_NA <- outliers_removed_car_NA %>% 
+    mutate(
+        Market.Category = fct_other(Market.Category, 
+            keep = c("Performance", "Hatchback", "Crossover"), 
+            other_level = "Other"),
+        Vehicle.Style = fct_lump(Vehicle.Style, n = 11, other_level = "Other"),
+        Make = fct_lump(Make, n = 32, other_level = "Other"),
+        MSRP = MSRP / 1000,
+        Vehicle.Size = factor(Vehicle.Size),
+        Vehicle.Style = factor(Vehicle.Style),
+        Engine.Fuel.Type = factor(Engine.Fuel.Type),
+        Driven_Wheels = factor(Driven_Wheels),
+        Transmission.Type = factor(Transmission.Type),
+        Make = factor(Make),
+        Model = factor(Model),
+        Category = factor(Category)
+    )
+```
+
+
+```{r}
+#backward selection for NA data
+lumped_full_model_NA <- lm(MSRP ~ ., data = converted_car_data_NA) %>% 
+  stats::step(direction = "backward")
+```
+
+```{r}
+model_NA <- lm(MSRP ~ Make + Year + Engine.Fuel.Type + Engine.HP  + 
+    Transmission.Type + Driven_Wheels + Number.of.Doors + Market.Category + Vehicle.Size +
+    Vehicle.Style + city.mpg, data = converted_car_data_NA) #removed Model for having too many observations and highway mpg because multicol with city
+#and Number.of.Doors VIF = 10.713 
+#levels(lumped_car_data$Market.Category)
+#alias(model)
+vif_values_NA <- vif(model_NA)
+print(vif_values_NA)
+```
+
+```{r}
+set.seed(314)
+
+NA_car_split <- initial_split(converted_car_data_NA, prop = 0.7, 
+                           strata = MSRP)
+NA_car_training <- training(NA_car_split)
+NA_car_testing <- testing(NA_car_split)
+
+NA_car_folds <- vfold_cv(NA_car_training, v = 5, strata = MSRP)
+```
+
+```{r}
+# stepwise model
+
+NA_stepwise_car_recipe <- recipe(MSRP ~ Make + Year + Engine.Fuel.Type + Engine.HP + 
+                       Transmission.Type + Driven_Wheels + Market.Category + Vehicle.Size + 
+                       Vehicle.Style + city.mpg, data = NA_car_training) %>% 
+  step_dummy(Make, Engine.Fuel.Type, Transmission.Type, 
+             Driven_Wheels, Market.Category, 
+            Vehicle.Style, Vehicle.Size) #%>% 
+  #step_zv(all_predictors()) %>% 
+  #step_center(all_predictors()) %>% 
+  #step_scale(all_predictors())
+
+NA_stepwise_model <- linear_reg() %>% 
+  set_engine("lm") %>% 
+  set_mode("regression")
+
+NA_stepwise_workflow <- workflow() %>% 
+  add_model(NA_stepwise_model) %>% 
+  add_recipe(NA_stepwise_car_recipe)
+
+NA_stepwise_fit <- fit_resamples(NA_stepwise_workflow, NA_car_folds)
+
+NA_stepwise_metrics <- collect_metrics(NA_stepwise_fit) %>% 
+  filter(.metric == "rmse") %>% 
+  arrange(mean) %>% 
+  slice_head(n=1)
+
+NA_stepwise_metrics
+```
+
+```{r}
+NA_stepwise_car_recipe1 <- recipe(MSRP ~ Make + Year + Engine.Fuel.Type + Engine.HP + 
+                       Transmission.Type + Driven_Wheels + Number.of.Doors + Market.Category 
+                       + Vehicle.Size + Vehicle.Style + city.mpg, data = NA_car_training) %>% 
+  step_dummy(Make, Engine.Fuel.Type, Transmission.Type, 
+             Driven_Wheels, Market.Category, 
+            Vehicle.Style, Vehicle.Size) #%>% 
+  #step_zv(all_predictors()) %>% 
+  #step_center(all_predictors()) %>% 
+  #step_scale(all_predictors())
+
+NA_stepwise_model1 <- linear_reg() %>% 
+  set_engine("lm") %>% 
+  set_mode("regression")
+
+NA_stepwise_workflow1 <- workflow() %>% 
+  add_model(NA_stepwise_model1) %>% 
+  add_recipe(NA_stepwise_car_recipe1)
+
+NA_stepwise_fit1 <- fit_resamples(NA_stepwise_workflow1, NA_car_folds)
+
+NA_stepwise_metrics1 <- collect_metrics(NA_stepwise_fit1) %>% 
+  filter(.metric == "rmse") %>% 
+  arrange(mean) %>% 
+  slice_head(n=1)
+
+NA_stepwise_metrics1
+```
+
+
+```{r}
+summary()
+```
+
+
+```{r}
+stepwise_metrics_NA <- collect_metrics(NA_stepwise_fit) 
+stepwise_metrics_NA
+```
+
+```{r}
+lasso_recipe_NA <- recipe(MSRP ~ ., data = NA_car_training) %>% 
+  step_other(Model, threshold = 0.15) %>%
+  step_dummy(Make, Model, Engine.Fuel.Type, Transmission.Type, 
+             Driven_Wheels, Market.Category, Vehicle.Style, Vehicle.Size, Category) %>%
+  step_zv(all_predictors()) %>% 
+  step_center(all_predictors()) %>% 
+  step_scale(all_predictors())
+
+lasso_model_NA <- linear_reg(
+  mixture = 1,
+  penalty = tune()
+) %>% 
+  set_mode("regression") %>% 
+  set_engine("glmnet")
+
+lasso_workflow_NA <- workflow() %>% 
+  add_model(lasso_model_NA) %>% 
+  add_recipe(lasso_recipe_NA)
+
+lasso_grid_NA <- grid_regular(penalty(), levels = 30)
+
+lasso_tunegrid_NA <- tune_grid(
+  lasso_workflow_NA,
+  resamples = NA_car_folds,
+  grid = lasso_grid_NA
+)
+
+save(lasso_tunegrid_NA, file = "lasso_tunegrid_NA.rda")
+load(lasso_tunegrid_NA)
+
+autoplot(lasso_tunegrid_NA)
+
+lasso_metrics_NA <- collect_metrics(lasso_tunegrid_NA )%>%
+  filter(.metric == "rmse") %>% 
+  arrange(mean) %>% 
+  slice_head(n=1)
+
+lasso_metrics_NA
+```
+
+```{r}
+lasso_recipe_NA <- recipe(MSRP ~ ., data = NA_car_training) %>% 
+  step_other(Model, threshold = 0.15) %>%
+  step_dummy(Make, Model, Engine.Fuel.Type, Transmission.Type, 
+             Driven_Wheels, Market.Category, Vehicle.Style, Vehicle.Size, Category) %>%
+  step_zv(all_predictors()) %>% 
+  step_center(all_predictors()) %>% 
+  step_scale(all_predictors())
+
+lasso_model_NA1 <- linear_reg(
+  mixture = 1,
+  penalty = tune()
+) %>% 
+  set_mode("regression") %>% 
+  set_engine("glmnet")
+
+lasso_workflow_NA1 <- workflow() %>% 
+  add_model(lasso_model_NA1) %>% 
+  add_recipe(lasso_recipe_NA)
+
+lasso_grid_NA1 <- grid_regular(penalty(range(0,1),
+                                     trans = identity_trans()),
+                              levels = 10)
+
+lasso_tunegrid_NA1 <- tune_grid(
+  lasso_workflow_NA1,
+  resamples = NA_car_folds,
+  grid = lasso_grid_NA1
+)
+
+save(lasso_tunegrid_NA1, file = "lasso_tunegrid_NA1.rda")
+load("lasso_tunegrid_NA1.rda")
+
+autoplot(lasso_tunegrid_NA1)
+
+lasso_metrics_NA1 <- collect_metrics(lasso_tunegrid_NA1 )%>%
+  filter(.metric == "rmse") %>% 
+  arrange(mean) %>% 
+  slice_head(n=1)
+
+lasso_metrics_NA1
+```
+
+
+```{r}
+lasso_metrics_NA <- collect_metrics(lasso_tunegrid_NA) 
+lasso_metrics_NA
+```
+
+
+```{r}
+rf_recipe_NA <- recipe(MSRP ~ ., data = NA_car_training) %>% 
+  step_other(Model, threshold = 0.10) %>%
+  step_dummy(Make, Model, Engine.Fuel.Type, Transmission.Type, 
+             Driven_Wheels, Market.Category, Vehicle.Style, Vehicle.Size, Category) %>%
+  step_zv(all_predictors()) 
+
+rf_model_NA <- rand_forest(
+  mtry = tune(),
+  trees = tune(),
+  min_n = tune()
+) %>% 
+  set_engine("ranger", importance = "impurity") %>% 
+  set_mode("regression")
+
+rf_workflow_NA <- workflow() %>% 
+  add_model(rf_model_NA) %>% 
+  add_recipe(rf_recipe_NA)
+
+rf_grid_NA <- grid_regular(mtry(range = c(1,4)),
+                        trees(range = c(300, 650)),
+                        min_n(range = c(5, 15)),
+                        levels = 10)
+rf_tune_NA <- tune_grid(
+  rf_workflow_NA,
+  resamples = NA_car_folds,
+  grid = rf_grid_NA,
+  metrics = metric_set(rmse)
+)
+
+save(rf_tune_NA, file = "~/Desktop/rf_tune_NA.rda")
+#save(rf_tune_NA, file = "rf_tune_NA.rda")
+
+load("rf_tune_NA.rda")
+
+autoplot(rf_tune_NA)
+```
+
+```{r}
+rf_recipe_NA1 <- recipe(MSRP ~ ., data = NA_car_training) %>%
+  step_other(Model, threshold = 0.10) %>%
+  step_dummy(Make, Model, Engine.Fuel.Type, Transmission.Type, 
+             Driven_Wheels, Market.Category, Vehicle.Style, Vehicle.Size, Category) %>%
+  step_zv(all_predictors()) 
+
+rf_model_NA1 <- rand_forest(
+  mtry = tune(),
+  trees = tune(),
+  min_n = tune()
+) %>% 
+  set_engine("ranger", importance = "impurity") %>% 
+  set_mode("regression")
+
+rf_workflow_NA1 <- workflow() %>% 
+  add_model(rf_model_NA1) %>% 
+  add_recipe(rf_recipe_NA1)
+
+rf_grid_NA1 <- grid_regular(mtry(range = c(1,5)),
+                        trees(range = c(200, 600)),
+                        min_n(range = c(5, 15)),
+                        levels = 10)
+rf_tune_NA1 <- tune_grid(
+  rf_workflow_NA1,
+  resamples = NA_car_folds,
+  grid = rf_grid_NA1,
+  metrics = metric_set(rmse)
+)
+
+save(rf_tune_NA1, file = "~/Desktop/rf_tune_NA1.rda")
+#save(rf_tune_NA, file = "rf_tune_NA.rda")
+
+load("~/Desktop/rf_tune_NA1.rda")
+
+autoplot(rf_tune_NA1)
+```
+
+
+```{r}
+rf_metrics_NA <- rf_tune_NA %>%
+  collect_metrics() %>% 
+  filter(.metric %in% c("rmse", "rsq", "mae")) %>% 
+  arrange(if_else(.metric == "rmse", mean, desc(mean))) %>% 
+  slice_head(n=1)
+
+rf_metrics_NA
+#mtry 1,4 trees 300,650 min_n 5,15 = 12.8611
+```
+```{r}
+rf_metrics_NA1 <- rf_tune_NA1 %>%
+  collect_metrics() %>% 
+  filter(.metric %in% c("rmse", "rsq", "mae")) %>% 
+  arrange(if_else(.metric == "rmse", mean, desc(mean))) %>% 
+  slice_head(n=1)
+
+rf_metrics_NA1 
+#mtry 1,5 trees 200,600 min_n 5,15 
+```
+
+
+```{r}
+rf_recipe_NA <- recipe(MSRP ~ ., data = NA_car_training) %>%
+  step_other(Model, threshold = 0.10) %>%
+  step_dummy(Make, Model, Engine.Fuel.Type, Transmission.Type, 
+             Driven_Wheels, Market.Category, Vehicle.Style, Vehicle.Size, Category) %>%
+  step_zv(all_predictors()) 
+
+rf_model_NA2 <- rand_forest(
+  mtry = tune(),
+  trees = tune(),
+  min_n = tune()
+) %>% 
+  set_engine("ranger", importance = "impurity") %>% 
+  set_mode("regression")
+
+rf_workflow_NA2 <- workflow() %>% 
+  add_model(rf_model_NA2) %>% 
+  add_recipe(rf_recipe_NA)
+
+rf_grid_NA2 <- grid_regular(mtry(range = c(1,4)),
+                        trees(range = c(200, 600)),
+                        min_n(range = c(5, 15)),
+                        levels = 10)
+rf_tune_NA2 <- tune_grid(
+  rf_workflow_NA2,
+  resamples = NA_car_folds,
+  grid = rf_grid_NA2,
+  metrics = metric_set(rmse)
+)
+
+save(rf_tune_NA2, file = "~/Desktop/rf_tune_NA2.rda")
+#save(rf_tune_NA, file = "rf_tune_NA.rda")
+
+load("~/Desktop/rf_tune_NA2.rda")
+
+autoplot(rf_tune_NA2)
+```
+
+```{r}
+rf_metrics_NA2 <- rf_tune_NA2 %>%
+  collect_metrics() %>% 
+  filter(.metric %in% c("rmse", "rsq", "mae")) %>% 
+  arrange(if_else(.metric == "rmse", mean, desc(mean))) %>% 
+  slice_head(n=1)
+
+rf_metrics_NA2
+```
+
+```{r}
+set.seed(314)
+rf_recipe_NA <- recipe(MSRP ~ ., data = NA_car_training) %>%
+  step_unknown(Make, Model, Market.Category, Vehicle.Style) %>% 
+  step_other(Model, threshold = 0.10) %>%
+  step_dummy(Make, Model, Engine.Fuel.Type, Transmission.Type, 
+             Driven_Wheels, Market.Category, Vehicle.Style, Vehicle.Size, Category) %>%
+  step_zv(all_predictors()) 
+
+rf_model_NA3 <- rand_forest(
+  mtry = tune(),
+  trees = tune(),
+  min_n = tune()
+) %>% 
+  set_engine("ranger", importance = "impurity") %>% 
+  set_mode("regression")
+
+rf_workflow_NA3 <- workflow() %>% 
+  add_model(rf_model_NA3) %>% 
+  add_recipe(rf_recipe_NA)
+
+rf_grid_NA3 <- grid_regular(mtry(range = c(1,5)),
+                        trees(range = c(200, 650)),
+                        min_n(range = c(5, 15)),
+                        levels = 10)
+rf_tune_NA3 <- tune_grid(
+  rf_workflow_NA3,
+  resamples = NA_car_folds,
+  grid = rf_grid_NA3,
+  metrics = metric_set(rmse)
+)
+
+save(rf_tune_NA3, file = "~/Desktop/rf_tune_NA3.rda")
+#save(rf_tune_NA, file = "rf_tune_NA.rda")
+
+load("~/Desktop/rf_tune_NA3.rda")
+
+autoplot(rf_tune_NA3)
+```
+
+```{r}
+rf_metrics_NA3 <- rf_tune_NA3 %>%
+  collect_metrics() %>% 
+  filter(.metric == "rmse") %>% 
+  arrange(mean) %>% 
+  slice_head(n=1)
+
+rf_metrics_NA3
+```
+```{r}
+best_rf1 <- select_best(rf_tune_NA3, metric = "rmse")
+
+rforest_final <- finalize_workflow(rf_workflow_NA3, best_rf1)
+
+rforest_final_fit <- fit(rforest_final, data = NA_car_training)
+
+augment_rf <- augment(rforest_final_fit, new_data = NA_car_testing)
+
+metric_rf <- augment_rf %>% 
+  metrics(truth = MSRP, estimate = .pred)
+
+metric_rf %>% filter(.metric == "rmse")
+
+#print(metric_rf)
+```
+
+```{r}
+nrow(augment_rf) == nrow(NA_car_testing)
+```
+
+
+
+```{r}
+rf_recipe_NA <- recipe(MSRP ~ ., data = NA_car_training) %>%
+  step_other(Model, threshold = 0.10) %>%
+  step_dummy(Make, Model, Engine.Fuel.Type, Transmission.Type, 
+             Driven_Wheels, Market.Category, Vehicle.Style, Vehicle.Size, Category) %>%
+  step_zv(all_predictors()) 
+
+rf_model_NA4 <- rand_forest(
+  mtry = tune(),
+  trees = tune(),
+  min_n = tune()
+) %>% 
+  set_engine("ranger", importance = "impurity") %>% 
+  set_mode("regression")
+
+rf_workflow_NA4 <- workflow() %>% 
+  add_model(rf_model_NA4) %>% 
+  add_recipe(rf_recipe_NA)
+
+rf_grid_NA4 <- grid_regular(mtry(range = c(1,14)),
+                        trees(range = c(200, 650)),
+                        min_n(range = c(5, 15)),
+                        levels = 10)
+rf_tune_NA4 <- tune_grid(
+  rf_workflow_NA4,
+  resamples = NA_car_folds,
+  grid = rf_grid_NA4,
+  metrics = metric_set(rmse)
+)
+
+save(rf_tune_NA4, file = "~/Desktop/rf_tune_NA3.rda")
+#save(rf_tune_NA, file = "rf_tune_NA.rda")
+
+load("~/Desktop/rf_tune_NA4.rda")
+
+autoplot(rf_tune_NA4)
+```
+
+
+```{r}
+pca_recipe_NA <- recipe(MSRP ~ ., data = NA_car_training) %>% 
+  step_other(Make, Model, threshold = 0.05) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_zv(all_predictors()) %>% 
+  step_center(all_predictors()) %>% 
+  step_scale(all_predictors()) %>% 
+  step_pca(all_predictors(), num_comp = 5)
+
+pca_model_NA <- linear_reg() %>% 
+  set_engine("lm") %>% 
+  set_mode("regression")
+
+pca_workflow_NA <- workflow() %>% 
+  add_model(pca_model_NA) %>% 
+  add_recipe(pca_recipe_NA) 
+
+pca_fit_NA <- fit_resamples(pca_workflow_NA, NA_car_folds)
+
+pca_metrics_NA <- collect_metrics(pca_fit_NA) %>% 
+  filter(.metric == "rmse") %>% 
+  arrange(mean) %>% 
+  slice_head(n=1)
+
+pca_metrics_NA
+```
+
+```{r}
+pca__metrics_NA <- collect_metrics(pca_fit_NA) 
+pca__metrics_NA
+```
+
+
+```{r}
+#car data with NO NAs
+car_data <- read.csv("~/Desktop/data.csv")
+car_data <- car_data %>% 
+  mutate(Category = ifelse(Make %in% c("BMW", "Audi", "Mercedes-Benz", "Volvo", "Ferrari", 
+          "Alfa Romero", "McLaren", "Maybach","Porsche", "Saab", "Cadillac", "Bentley", "Lamborghini", 
+          "Lincoln", "Rolls-Royce", "Buick", "Maserati","Lexus", "Aston Martin", "Land Rover",
+          "Lotus", "Infiniti", "Genesis", "Bugatti"),
+                         "Luxury",
+                         "Non-Luxury"))
+updated_car_data <- subset(updated_car_data, !( Market.Category == "N/A" | Engine.Fuel.Type == "" | Engine.Cylinders == 0 | Transmission.Type == "UNKNOWN"))
+
+```
+
+```{r}
+boxplot(updated_car_data$Popularity)
+boxplot(updated_car_data$MSRP)
+boxplot(updated_car_data$highway.MPG)
+boxplot(updated_car_data$city.mpg)
+
+IQR_HP <- IQR(updated_car_data$Engine.HP)
+lower_HP <- quantile(updated_car_data$Engine.HP, 0.25) - 2.0 * IQR_HP
+upper_HP <- quantile(updated_car_data$Engine.HP, 0.75) + 2.5 * IQR_HP
+
+IQR_highway <- IQR(updated_car_data$highway.MPG)
+lower_highway <- quantile(updated_car_data$highway.MPG, 0.25) - 3.0 * IQR_highway
+upper_highway <- quantile(updated_car_data$highway.MPG, 0.75) + 4.0 * IQR_highway
+
+IQR_MSRP <- IQR(updated_car_data$MSRP)
+lower_MSRP <- quantile(updated_car_data$MSRP, 0.25) - 3.0 * IQR_MSRP
+upper_MSRP <- quantile(updated_car_data$MSRP, 0.75) + 2.0 * IQR_MSRP
+
+outliers_removed_car <- updated_car_data %>% 
+  filter(Engine.HP >= lower_HP & Engine.HP <= upper_HP) %>% 
+  filter(highway.MPG >= lower_highway & highway.MPG <= upper_highway) %>% 
+  filter(MSRP >= lower_MSRP & MSRP <= upper_MSRP) 
+  
+
+boxplot(outliers_removed_car$MSRP)
+boxplot(updated_car_data$Engine.HP)
+boxplot(outliers_removed_car$Engine.HP)
+```
+
+```{r}
+converted_car_data <- outliers_removed_car %>% 
+    mutate(
+        Market.Category = fct_other(Market.Category, 
+            keep = c("Performance", "Hatchback", "Crossover"), 
+            other_level = "Other"),
+        Vehicle.Style = fct_lump(Vehicle.Style, n = 11, other_level = "Other"),
+        Make = fct_lump(Make, n = 32, other_level = "Other"),
+        MSRP = MSRP / 1000,
+        Vehicle.Size = factor(Vehicle.Size),
+        Vehicle.Style = factor(Vehicle.Style),
+        Engine.Fuel.Type = factor(Engine.Fuel.Type),
+        Driven_Wheels = factor(Driven_Wheels),
+        Transmission.Type = factor(Transmission.Type),
+        Make = factor(Make),
+        Model = factor(Model)
+    ) 
+unique(stepwise_car_data$Make)
+```
+
+```{r}
+lumped_car_data <- outliers_removed_car %>% 
+    mutate(
+        Market.Category = fct_other(Market.Category, 
+            keep = c("Performance", "Hatchback", "Crossover"), 
+            other_level = "Other"),
+        Vehicle.Style = fct_lump(Vehicle.Style, n = 11, other_level = "Other"),
+        Make = fct_lump(Make, n = 32, other_level = "Other"),
+        Model = fct_lump(Model, n = 16, other_level = "Other"),
+        MSRP = MSRP / 1000,
+        Vehicle.Size = factor(Vehicle.Size),
+        Vehicle.Style = factor(Vehicle.Style),
+        Engine.Fuel.Type = factor(Engine.Fuel.Type),
+        Driven_Wheels = factor(Driven_Wheels),
+        Transmission.Type = factor(Transmission.Type),
+        Make = factor(Make),
+        Model = factor(Model)
+    ) 
+```
+
+
+```{r}
+#NO NA backward selection
+lumped_full_model <- lm(MSRP ~ ., data = converted_car_data) %>% 
+  stats::step(direction = "backward")
+```
+
+```{r}
+cor(lumped_car_data %>% select(highway.MPG, city.mpg, Engine.HP, Engine.Cylinders))
+```
+
+```{r}
+library(car)
+stepwise_model <- lm(MSRP ~ Make + Year + Engine.Fuel.Type + Engine.HP  + 
+    Transmission.Type + Driven_Wheels + Market.Category + Vehicle.Size +
+    Vehicle.Style + city.mpg, data = converted_car_data) #removed Model for having too many observations 
+#removed highway mpg since theres a strong correlation with city
+#levels(lumped_car_data$Market.Category)
+#alias(model)
+vif_values <- vif(stepwise_model)
+print(vif_values)
+#summary(lumped_car_data)
+#dim(table(lumped_car_data$Model))
+#dim(table(lumped_car_data$Make))
+```
+
+```{r}
+car_metrics <- metric_set(rmse, rsq, mae)
+```
+
+```{r}
+set.seed(314)
+
+car_split <- initial_split(converted_car_data, prop = 0.7, 
+                           strata = MSRP)
+car_training <- training(car_split)
+car_testing <- testing(car_split)
+
+car_folds <- vfold_cv(car_training, v = 5, strata = MSRP)
+
+#stepwise_training <- stepwise_car_data[car_training,]
+#stepwie_testing <- stepwise_car_data[car_testing,]
+
+#lumped_training <- lumped_car_data[car_training,]
+#lumped_testing <- lumped_car_data[car_testing,]
+
+#stepwise_car_folds <- vfold_cv(stepwise_training, v = 5, strata = MSRP)
+#lumped_car_folds <- vfold_cv(lumped_training, v = 5, strata = MSRP)
+```
+
+
+```{r}
+# stepwise model
+
+stepwise_car_recipe <- recipe(MSRP ~ Make + Year + Engine.Fuel.Type + Engine.HP + 
+                       Transmission.Type + Driven_Wheels + Market.Category + Vehicle.Size + 
+                       Vehicle.Style + city.mpg, data = car_training) %>% 
+  step_dummy(Make, Engine.Fuel.Type, Transmission.Type, 
+             Driven_Wheels, Market.Category, 
+            Vehicle.Style, Vehicle.Size) #%>% 
+  #step_zv(all_predictors()) %>% 
+  #step_center(all_predictors()) %>% 
+  #step_scale(all_predictors())
+
+stepwise_model <- linear_reg() %>% 
+  set_engine("lm") %>% 
+  set_mode("regression")
+
+stepwise_workflow <- workflow() %>% 
+  add_model(stepwise_model) %>% 
+  add_recipe(stepwise_car_recipe)
+
+stepwise_fit <- fit_resamples(stepwise_workflow, car_folds)
+
+stepwise_metrics <- collect_metrics(stepwise_fit) %>% 
+  filter(.metric %in% c("rmse", "rsq", "mae")) %>% 
+  arrange(mean) %>% 
+  slice_head(n=1)
+stepwise_metrics
+```
+
+```{r}
+stepwise_metrics_ <- collect_metrics(stepwise_fit) 
+stepwise_metrics_
+```
+
+
+```{r}
+#lasso
+lasso_recipe <- recipe(MSRP ~ ., data = car_training) %>% 
+  step_other(Model, threshold = 0.15) %>%
+  step_dummy(Make, Model, Engine.Fuel.Type, Transmission.Type, 
+             Driven_Wheels, Market.Category, Vehicle.Style, Vehicle.Size, Category) %>%
+  step_zv(all_predictors()) %>% 
+  step_center(all_predictors()) %>% 
+  step_scale(all_predictors())
+
+lasso_model <- linear_reg(
+  mixture = 1,
+  penalty = tune()
+) %>% 
+  set_mode("regression") %>% 
+  set_engine("glmnet")
+
+lasso_workflow <- workflow() %>% 
+  add_model(lasso_model) %>% 
+  add_recipe(lasso_recipe)
+
+lasso_grid <- grid_regular(penalty(), levels = 30)
+
+lasso_tunegrid <- tune_grid(
+  lasso_workflow,
+  resamples = car_folds,
+  grid = lasso_grid
+)
+
+autoplot(lasso_tunegrid)
+
+lasso_metrics <- lasso_tunegrid %>%
+  collect_metrics() %>% 
+  filter(.metric %in% c("rmse", "rsq", "mae")) %>% 
+  arrange(if_else(.metric == "rsq", desc(mean), mean)) %>% 
+  slice_head(n=1)
+
+lasso_metrics
+```
+
+```{r}
+lasso_metrics_ <- collect_metrics(lasso_tunegrid) 
+lasso_metrics_
+```
+
+
+```{r}
+rf_recipe <- recipe(MSRP ~ ., data = car_training) %>% 
+  step_other(Model, threshold = 0.15) %>%
+  step_dummy(Make, Model, Engine.Fuel.Type, Transmission.Type, 
+             Driven_Wheels, Market.Category, Vehicle.Style, Vehicle.Size, Category) %>%
+  step_zv(all_predictors()) 
+
+rf_model <- rand_forest(
+  mtry = tune(),
+  trees = tune(),
+  min_n = tune()
+) %>% 
+  set_engine("ranger", importance = "impurity") %>% 
+  set_mode("regression")
+
+rf_workflow <- workflow() %>% 
+  add_model(rf_model) %>% 
+  add_recipe(rf_recipe)
+
+rf_grid <- grid_regular(mtry(range = c(1,4)),
+                        trees(range = c(300, 650)),
+                        min_n(range = c(5, 15)),
+                        levels = 10)
+rf_tune <- tune_grid(
+  rf_workflow,
+  resamples = car_folds,
+  grid = rf_grid
+)
+
+save(rf_tune, file = "rf_tune.rda")
+
+load("rf_tune.rda")
+
+autoplot(rf_tune)
+
+```
+
+```{r}
+rf_metrics <- rf_tune %>%
+  collect_metrics() %>% 
+  filter(.metric %in% c("rmse", "rsq", "mae")) %>% 
+  arrange(if_else(.metric == "rmse", desc(mean), mean)) %>% 
+  slice_head(n=1)
+
+rf_metrics
+```
+
+```{r}
+
+```
+
+
+```{r}
+pca_recipe <- recipe(MSRP ~ ., data = car_training) %>% 
+  step_other(Make, Model, threshold = 0.05) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_zv(all_predictors()) %>% 
+  step_center(all_predictors()) %>% 
+  step_scale(all_predictors()) %>% 
+  step_pca(all_predictors(), num_comp = 5)
+
+pca_model <- linear_reg() %>% 
+  set_engine("lm") %>% 
+  set_mode("regression")
+
+pca_workflow <- workflow() %>% 
+  add_model(pca_model) %>% 
+  add_recipe(pca_recipe) 
+
+pca_fit <- fit_resamples(pca_workflow, car_folds)
+
+pca_metrics <- collect_metrics(pca_fit) %>% 
+  filter(.metric %in% c("rmse", "rsq", "mae")) %>% 
+  arrange(if_else(.metric == "rsq", desc(mean), mean)) %>% 
+  slice_head(n=1)
+
+pca_metrics
+```
+
+```{r}
+pca_metrics_ <- collect_metrics(pca_fit) 
+pca_metrics_
+```
+
+```{r}
+check_novel_levels <- function(train_data, test_data, column_name) {
+  train_levels <- unique(train_data[[column_name]])
+  test_levels <- unique(test_data[[column_name]])
+  novel_levels <- setdiff(test_levels, train_levels)
+  return(novel_levels)
+}
+
+# Example: Check for novel levels in "Make"
+novel_make <- check_novel_levels(NA_car_training, NA_car_testing, "Make")
+novel_model <- check_novel_levels(NA_car_training, NA_car_testing, "Model")
+novel_market_category <- check_novel_levels(NA_car_training, NA_car_testing, "Market.Category")
+novel_vehicle_style <- check_novel_levels(NA_car_training, NA_car_testing, "Vehicle.Style")
+
+print(list(Make = novel_make, Model = novel_model, 
+           Market.Category = novel_market_category, Vehicle.Style = novel_vehicle_style))
+
+```
+```{r}
+table(NA_car_training$Make)
+table(NA_car_testing$Make)
+```
+
+```{r}
+table(NA_car_training$Vehicle.Style)
+table(NA_car_testing$Vehicle.Style)
+```
+
+```{r}
+table(NA_car_training$Market.Category)
+table(NA_car_testing$Market.Category)
+```
+```{r}
+identical(levels(NA_car_training$Make), levels(NA_car_testing$Make))
+identical(levels(NA_car_training$Vehicle.Style), levels(NA_car_testing$Vehicle.Style))
+identical(levels(NA_car_training$Market.Category), levels(NA_car_testing$Market.Category))
+
+```
+
