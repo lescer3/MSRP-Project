@@ -32,14 +32,14 @@ library(tidymodels)
 
 # Introduction
 
-The purpose of this project is to build a machine learning model to predict the Manufacturer’s Suggested Retail Price (MSRP) of cars based on various features such as make, year, and engine fuel type. Beyond prediction, this project aims to address two questions:
+The purpose of this project is to build a machine learning model to predict the Manufacturer’s Suggested Retail Price (MSRP) of cars based on various features, such as make, year, and engine fuel type. Beyond prediction, this project aims to address two questions:
 
 - What are the most important car features that influence the price of a car?
 - Is there a significant price difference between different types of transmissions?
 
 By examining the relationships between the predictors and MSRP, I aim to identify the factors that contribute to the price variations across models and quantify the impact of transmission types on MSRP. 
 
-Additionally, I will investigate whether there is a significant price difference among many transmission types such as automated manual, automatic, direct drive, and manual. This analysis will provide insights into the potential effects of transmission type on overall cost. 
+Additionally, I will investigate whether there is a significant price difference among various transmission types such as automated manual, automatic, direct drive, and manual. This analysis will provide insights into the potential effects of transmission type on overall cost. 
 
 ![image](~/Desktop/MSRP1.pdf){width=30%}
 
@@ -49,10 +49,10 @@ Additionally, I will investigate whether there is a significant price difference
 
 As an adult, I believe it is important to understand how a car’s features affect its MSRP. MSRP serves as the price the original producer of the car suggests the cost to be (https://www.indeed.com/career-advice/career-development/msrp).The main purpose of MSRP is to give distributors and retailers guidelines to maintain prices consistent and affordable for the majority of customers across locations. This also serves as the starting point for negotiations at the dealership.
 
-MSRP not only sets expectations around affordability, financing and loan terms, but it also affects recurring expenses like insurance. In today’s economy, MSRP has been affected by inflation, supply chain disruptions, and technological advancements. Understanding these factors is crucial for making wise financial decisions, especially for new buyers who want to get the best value for their investment. This project will shed light on the factors that influence MSRP in the automotive market. 
+MSRP not only sets expectations around affordability, financing, and loan terms, but it also affects recurring expenses like insurance. In today’s economy, MSRP has been affected by inflation, supply chain disruptions, and technological advancements. Understanding these factors is crucial for making wise financial decisions, especially for new buyers who want to get the best value for their investment. This project will shed light on the factors that influence MSRP in the automotive market. 
 
 ## Data
-The data that will be used for this project comes from Kaggle, a platform for everyone to compete, collaborate, and learn, and was provided from user Rupinder Singh Rana. The dataset provides different features of cars along with the price from 1990 to 2017 (https://www.kaggle.com/datasets/rupindersinghrana/car-features-and-prices-dataset). The dataset includes variables such as `Make`, `Model`, `Year`, `Transmission.Type`, `MSRP`, & etc and approximately eleven thousand observations. 
+The data that will be used for this project comes from Kaggle, a platform for everyone to compete, collaborate, and learn, and was provided by user Rupinder Singh Rana. The dataset provides different features of cars along with the price from 1990 to 2017 (https://www.kaggle.com/datasets/rupindersinghrana/car-features-and-prices-dataset). The dataset includes variables such as `Make`, `Model`, `Year`, `Transmission.Type`, `MSRP`, & etc and approximately eleven thousand observations. 
 
 # Explanatory Data Analysis 
 
@@ -141,7 +141,7 @@ vis_miss(car_data)
 colSums(is.na(car_data))
 ```
 
-Looking at the graph, we can see there are a few missing observations for `Engine.HP`, `Engine.Cylinders`, `Number.of.Doors`. Specifically, there are 69 missing observations for `Engine.HP`, 30 for `Engine.Cylinders`, and 6 for `Number.of.Doors`. While skimming through the dataset, I noticed the function viss_miss did not catch other missing values due how it was represented. 
+Looking at the graph, we can see there are a few missing observations for `Engine.HP`, `Engine.Cylinders`, `Number.of.Doors`. Specifically, there are 69 missing observations for `Engine.HP`, 30 for `Engine.Cylinders`, and 6 for `Number.of.Doors`. While skimming through the dataset, I noticed the function viss_miss did not catch other missing values due to how it was represented. 
 
 ```{r}
 library(tidyr)
@@ -153,11 +153,11 @@ NA_car_data <- subset(updated_car_data, !( Engine.Fuel.Type == "" | Engine.Cylin
                                            | Transmission.Type == "UNKNOWN"))
 ```
 
-Upon reviewing the dataset, I decided on removing the observations with missing data in `Engine.HP`, `Engine.Cylinders`, or `Number.of.Doors` since we could afford to remove the missing observations. After reviewing the updated set with the missing values removed, I noticed that some rows had a value of 0 in `Engine.Cylinders` which seemed incorrect. As a result, I chose to remove the rows.  
+Upon reviewing the dataset, I decided on removing the observations with missing data in `Engine.HP`, `Engine.Cylinders`, or `Number.of.Doors` since we could afford to remove the missing observations. After reviewing the updated set with the missing values removed, I noticed that some rows had a value of 0 in `Engine.Cylinders`, which seemed incorrect. As a result, I chose to remove the rows.  
 
 In the `Market.Category` variable there are three thousand observations marked as "N/A" that the program did not detect. To evaluate the significance of the missing data points, I conducted two trials: one where missing observations were removed (No NA trial) and the other where missing observations were kept without imputation (NA trial). 
 
-After training and comparing the model results on both trials, the NA trial demonstrated better performance across RMSE. This tell us that retaining the missing values contributes to the predictive power of the models. I chose not to impute the missing data points because it will introduce bias which would lead to false conclusions and be misleading. 
+After training and comparing the model results on both trials, the NA trial demonstrated better performance across RMSE. This tell us that retaining the missing values contributes to the predictive power of the models. I chose not to impute the missing data points because doing so will introduce bias which would lead to false conclusions and be misleading. 
 
 ## Outliers
 
@@ -233,11 +233,21 @@ converted_car_data_NA <- outliers_removed_car_NA %>%
     )
 ```
 
-
+Here, I am lumping categories in `Market.Category` that are not "Performance", "Hatchback", or "Crossover. I picked these 3 as were in the top 10 with  the highest number of observations. I also lumped categories in `Vehicle.Style` and `Make` keeping the top 11 and 32 and grouping the other observations as "Other." I divided the `MSRP` by a thousand to have a greater range in y for the visual data. Lastly, I factored only the categorical values. 
 
 ## Visual Data
 
 We will explore some relationships between the predictors and MSRP.
+
+### MSRP
+
+```{r}
+ggplot(converted_car_data_NA, aes(x = MSRP)) +
+  geom_histogram(bins = 40, fill = "skyblue", color = "black") + labs(x = "MSRP (in thousands)", y = "Count")
+```
+
+The histrogram visualizes the distribution of `MSRP` with a range from close to \$0 up to at least \$85,000. The distribution is right skewed meaning most vehicles have a lower MSRP. The largest mode is near \$0 to \$5,000, this indicates there is a significant amount of cars with low MSRP and there is a another cluster around \$20,000 to \$30,000. 
+ 
 
 ### MSRP vs Transmission Type 
 
@@ -310,7 +320,7 @@ converted_car_data_NA %>%
 
 Now, we are going to explore the relationships between pairs of variables in the dataset. As a reminder, correlation coefficients range from -1 to 1, where values close to -1 or 1 indicating a stronger relationship. 
 
-- City MPG and Highway MPG: A very strong positive correlation (r = 0.91) shows that cars with better fuel efficiency in city conditions will also be efficient in highway conditions
+- City MPG and Highway MPG: A very strong positive correlation (r = 0.91) shows that cars with better fuel efficiency in city conditions will also be efficient in highway conditions.
 - Engine Cylinders and Engine HP: There is a strong positive correlation (r = 0.71), indicating vehicles with more engine cylinders tend to have higher horsepower.
 - Engine Horsepower and MSRP: The strong positive correlation (r = 0.75) indicates vehicles with higher horsepower tend to have higher prices. 
 - Engine Cylinders and Fuel Efficiency: There is a strong negative correlation between engine cylinders and both city mpg (r = -0.68) and highway mpg 
@@ -324,7 +334,7 @@ It is time to set up our models. This is where split our data and fit the traini
 
 ## Data Split
 
-The first step would be to split the data into training and testing data sets. The training data is used to train the model to estimate `MSRP` based on observed data (pg. 21, ISRL book). The testing data, which contains the unseen observations,is used to test the model's accuracy (pg. 30).I have chosen a 70/30 split, assigning 70% to the training set and 30% to the testing set. This split will help the model train while reserving a portion to test the accuracy on the remaining observations, helping to prevent over-fitting. The split is stratified on the `MSRP` variable to ensure the same distribution on both the training and testing sets, and a random seed to reproduce my results consistently.
+The first step would be to split the data into training and testing data sets. The training data is used to train the model to estimate `MSRP` based on observed data (pg. 21, ISRL book). The testing data, which contains the unseen observations, is used to test the model's accuracy (pg. 30). I have chosen a 70/30 split, assigning 70% to the training set and 30% to the testing set. This split will help the model train while reserving a portion to test the accuracy on the remaining observations, helping to prevent overfitting. The split is stratified on the `MSRP` variable to ensure the same distribution on both the training and testing sets, and a random seed to reproduce my results consistently.
 
 
 ```{r}
@@ -391,7 +401,7 @@ pca_recipe_NA <- recipe(MSRP ~ ., data = NA_car_training) %>%
 
 ## K-Fold Cross Validation
 
-We are using K-Fold Cross Validation, which randomly divides the set of observations into 5 folds that are approximately equal size (pg. 203). The first fold is treated as a validation set, a set of data used to train, and is applied to the remaining k-1 folds. A performance metric is then computed from the remaining observations used to evaluate the model. This process is repeated 5 times with a different group of observations used as a validation set. Finally, it then averages the test error across all folds.
+We are using K-Fold Cross Validation, which randomly divides the set of observations into 5 folds that are approximately equal size (pg. 203). The first fold is treated as a validation set and the model is trained on the remaining k-1 folds. A performance metric, such as RMSE or $R^2$, is then computed from the remaining observations used to evaluate the model. This process is repeated 5 times with a different group of observations used as a validation set. Finally, it then averages the test error across all folds.
 
 ```{r}
 NA_car_folds <- vfold_cv(NA_car_training, v = 5, strata = MSRP)
@@ -399,7 +409,7 @@ NA_car_folds <- vfold_cv(NA_car_training, v = 5, strata = MSRP)
 
 # Model Building
 
-In this section, we implement several models to predict `MSRP` and to learn more about the variables influencing car prices. I will be using Root Mean Square Error (RMSE) as my metric for all of the models. RMSE is used to quantify how far predictions are from the true values. The lower the RMSE, the closer the predictions are from the true values and vice-versa for a high RMSE. 
+In this section, we implement several models to predict `MSRP` and to learn more about the variables influencing car prices. We will build the model using the tidied data from earlier, prepare the training data, select appropriate models, train the models on the data, fine tune the parameters, and evaluate each model's performance. We then choose the model with the best metric. I will be using Root Mean Square Error (RMSE) as my metric for all of the models. RMSE is used to quantify how far predictions are from the true values. The lower the RMSE, the closer the predictions are from the true values and the higher the RMSE, the farther away the predictions are from the true values.
 
 As seen above in the recipe building, I will be using Stepwise Linear Regression, Lasso Regression, Random Forest, and PCA Regression. Each model contributes its own unique strengths: stepwise regression examines the significance of each variable, lasso eliminates the less important predictors in the model by shrinking their coefficients by zero, random forest provides information about the significance of the predictors in the data, and PCA regression reduces dimensionality. 
 
@@ -472,8 +482,8 @@ pca_workflow_NA <- workflow() %>%
 lasso_grid_NA <- grid_regular(penalty(), levels = 30)
 
 #Random Forest
-#rf_grid_NA <- grid_regular(mtry(range = c(1,4)),
-                        #trees(range = c(300, 650)),
+#rf_grid_NA <- grid_regular(mtry(range = c(1,5)),
+                        #trees(range = c(200, 650)),
                         #min_n(range = c(5, 15)),
                         #levels = 10)
 
@@ -503,11 +513,100 @@ lasso_tunegrid_NA <- tune_grid(
 pca_fit_NA <- fit_resamples(pca_workflow_NA, NA_car_folds)
 ```
 
-5. 
+5. Save the tuned model. 
 ```{r}
-load("~/Desktop/rf_tune_NA.rda")
-autoplot(rf_tune_NA)
+#Lasso
+save(lasso_tunegrid_NA, file = "lasso_tunegrid_NA.rda")
+
+#Random Forest
+save(rf_tune_NA3, file = "~/Desktop/rf_tune_NA3.rda")
 ```
+6. Load the saved files
+```{r}
+#Lasso 
+load(lasso_tunegrid_NA)
+
+#Random Forest
+load("~/Desktop/rf_tune_NA3.rda")
+```
+
+7. Collect the metrics from each model, filter rmse, arrange from ascending order, and slice to show the first result.
+```{r}
+#Stepwise Regression
+NA_stepwise_metrics <- collect_metrics(NA_stepwise_fit) %>% 
+  filter(.metric == "rmse") %>% 
+  arrange(mean) %>% 
+  slice_head(n=1)
+
+#Lasso Regression
+lasso_metrics_NA <- collect_metrics(lasso_tunegrid_NA )%>%
+  filter(.metric == "rmse") %>% 
+  arrange(mean) %>% 
+  slice_head(n=1)
+
+#Random Forest
+rf_metrics_NA3 <- rf_tune_NA3 %>%
+  collect_metrics() %>% 
+  filter(.metric == "rmse") %>% 
+  arrange(mean) %>% 
+  slice_head(n=1)
+
+#PCA Regression
+pca_metrics_NA <- collect_metrics(pca_fit_NA) %>% 
+  filter(.metric == "rmse") %>% 
+  arrange(mean) %>% 
+  slice_head(n=1)
+```
+
+Lasso Regression: 
+Lasso Regression was used as a predictive model. The hyperparameter `penalty()` was tuned using 5-fold cross validation over a grid of 30 levels. The best penalty was 1.000000e-10 with an RMSE of 6.583335.
+
+PCA Regression: 
+PCA Regression was used to reduce dimensionality while keeping the important predictors. It had a RMSE of 9.558593.
+
+# Model Results
+
+```{r}
+stepwise_results <- tibble(
+  Model = "Stepwise Regression",
+  RMSE = 6.626349
+)
+lasso_results <- tibble(
+  Model = "Lasso Regression",
+  RMSE = 6.583335
+)
+randomf_results <- tibble(
+  Model = "Random Forest",
+  RMSE = 4.628497
+)
+pca_results <- tibble(
+  Model = "PCA Regression",
+  RMSE = 9.558593
+)
+all_metrics <- bind_rows(stepwise_results, lasso_results, randomf_results, pca_results)
+
+print(all_metrics)
+```
+
+## Model Autoplot 
+
+### Lasso
+```{r}
+#Lasso
+autoplot(lasso_tunegrid_NA, metric = 'rmse')
+```
+
+Stepwise Regression: 
+Stepwise Regression was used as an inferential model to identify significant predictors of MSRP. The model began with all predictors and removed non-significant predictors using backward selection. The final model included `Make`, `Year`, `Engine.Fuel.Type`, `Engine.HP`,`Transmission.Type`, `Driven_Wheels`,`Market.Category`,`Vehicle.Size`,`Vehicle.Style`, and `city.mpg`. The model was tuned using 5-fold cross validation and achieved an RMSE of 6.626349.
+
+### Random Forest
+```{r}
+#Random Forest
+autoplot(rf_tune_NA3)
+```
+
+Random Forest: 
+Random Forest was used to optimize prediction accuracy. The hyperparameters `mtry()`, `trees()`, and `min_n()` were tuned using grid regular: `mtry()` tested values from 1 to 4, `trees()` tested values from 300 to 650, and `min_n()` tested values from 5 to 15. The hyperparameters were tuned over a grid of 10 levels and 5-fold cross validation. The best `mtry` was 5, `trees` was 500, and `min_n` was 5 with an RMSE of 4.628497.
 
 # Sources
 Kaggle. Car Features and Prices Dataset, Version 1.0, 2024, Kaggle, https://www.kaggle.com/datasets/rupindersinghrana/car-features-and-prices-dataset/data. 
