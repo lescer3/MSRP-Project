@@ -693,6 +693,14 @@ rforest_final_fit %>%
 
 The two most significant features were `Year` and `Engine.HP`. This suggests that newer cars, which often have more advanced technology, tend to have higher MSRPs. Similarly, cars with better performance give a better driving experience which demand higher MSRPs. Additionally other significant features include `Engine.Fuel.Type_regular.unleaded`, and `Category_Non.Luxury`, which demonstrates the influence of fuel type and affordability. These features indicate the importance of technological features, driving experience, fuel availability, and affordability when it comes to MSRP.  
 
+## 
+
+```{r}
+NA_car_training$Transmission.Type <- relevel(NA_car_training$Transmission.Type, ref = "MANUAL")
+
+```
+
+
 # Conclusion
 
 At the beginning of this project, we set out to predict the MSRP based on car features. After cleaning and visualizing the data, we learned more about the range of the values. We continued on with creating our training and testing sets with the four models: Stepwise Regression, Lasso Regression, Random Forest, and PCA Regression. After building and fitting the models, we compared them by RMSE. The PCA Regression had the highest RMSE (9.558593), Stepwise Regression followed with a value of 6.626349, then Lasso Regression with 6.583335, and finally Random Forest with the lowest RMSE of 4.628497.
