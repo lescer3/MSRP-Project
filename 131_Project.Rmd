@@ -57,11 +57,12 @@ MSRP not only sets expectations around affordability, financing, and loan terms,
 
 What is something you look for when buying a car?
 
-The car's features! Car features are the most critical factors influencing the price of the car, as they offer functionality, performance, and appeal. Features like Engine HP and Transmission Type affect how the car performs and driving experience, while other features such as Vehicle Style and Market Category offer appealance. Luxury cars tend to have advanced features like engine horsepower, transmission type, and more, which significantly drive up the MSRP. Conversely, non-luxury cars focus more on affordability. This project will explore the relationship between the features and the MSRP, seeking to determine which features are most significant. 
+The car's features! Car features are the most critical factors influencing the price of the car, as they offer functionality, performance, and appeal. Features like engine horsepower and transmission type affect how the car performs and driving experience, while other features such as vehicle style and market category offer appealance. Luxury cars tend to have advanced features like engine horsepower, transmission type, and more, which significantly drive up the MSRP. Conversely, non-luxury cars focus more on affordability. This project will explore the relationship between the features and the MSRP, seeking to determine which features are most significant. 
 
 ## Transmission Types and Pricing 
 
-
+An important feature to consider when buying a new car is the transmission type, as it impacts your driving experience, affordability, and fuel efficiency. Direct drive transmissions is fuel efficient only when driving on a flat ground highway. Manual transmissions provide a more engaging driving experience and saves you money on fuel and maintanence. While automatic transmissions are more popular due to eliminating the need to change gears manually, they are typically less fuel efficient. (https://www.dennisdillonmazda.com/which-transmission-type-is-right-for-you-boise-id/#:~:text=Equipping%20yourself%20with%20the%20necessary,make%20a%20well%2Dinformed%20decision.) An automated manual transmission combines both transmission features, offering fuel efficiency from automatic and the cost-effectiveness of a manual transmission. Out of the transmissions, direct drive is the most expensive, followed by automatic transmission, and last manual and automatic manual transmissions. (https://www.autotransrus.com.au/blog/amt/#:~:text=AMT%20offers%20a%20compromise%20between,ease%20of%20use%20is%20compromised.)
+(https://www.truckinginfo.com/155143/direct-drive-or-overdrive#:~:text=It%20all%20depends%20on%20the,overdrive%20becomes%20a%20better%20fit.)
 
 ## Data
 
@@ -180,11 +181,11 @@ To better understand the data, we're going to visualize predictors with a wide r
 
 ```{r}
 ggplot(NA_car_data, aes(MSRP)) +
-  geom_boxplot() + coord_flip() + labs(x = "MSRP (in thousands)")
+  geom_boxplot(fill = "plum") + coord_flip() + labs(x = "MSRP (in thousands)")
 ggplot(NA_car_data, aes(highway.MPG)) +
-  geom_boxplot() + coord_flip() + labs(x = "Highway MPG")
+  geom_boxplot(fill = "powderblue") + coord_flip() + labs(x = "Highway MPG")
 ggplot(NA_car_data, aes(Engine.HP)) +
-  geom_boxplot() + coord_flip() + labs(x = "Engine Horse Power")
+  geom_boxplot(fill = "lavender") + coord_flip() + labs(x = "Engine Horse Power")
 
 ```
 
@@ -216,11 +217,11 @@ outliers_removed_car_NA <- NA_car_data %>%
 library(ggplot2)
 
 ggplot(outliers_removed_car_NA, aes(MSRP)) +
-  geom_boxplot() + coord_flip() + labs(x = "MSRP (in thousands)")
+  geom_boxplot(fill = "plum3") + coord_flip() + labs(x = "MSRP (in thousands)")
 ggplot(outliers_removed_car_NA, aes(highway.MPG)) +
-  geom_boxplot() + coord_flip() + labs(x = "Highway MPG")
+  geom_boxplot(fill = "powderblue") + coord_flip() + labs(x = "Highway MPG")
 ggplot(outliers_removed_car_NA, aes(Engine.HP)) +
-  geom_boxplot() + coord_flip() + labs(x = "Engine Horse Power")
+  geom_boxplot(fill = "lavender") + coord_flip() + labs(x = "Engine Horse Power")
 ```
 
 Above are the same boxplots after applying the transformations to the data. Some outliers remain which are intentionally retain to preserve the high range of values. 
@@ -291,7 +292,8 @@ common_10 <- converted_car_data_NA %>%
   filter(Make %in% c("BMW", "Mercedes-Benz", "Lincoln", "Lexus", "Infiniti", "Honda", "Toyota", 
                    "Nissan", "Ford", "Subaru"))
 ggplot(common_10, aes(x = Make, y = MSRP)) +
-  geom_boxplot(fill = "purple") + xlab("Car Make") + ylab("MSRP (in thousands)") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  geom_boxplot(fill = "purple") + xlab("Car Make") + ylab("MSRP (in thousands)") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 ```
 
 The boxplots compare the `MSRP` distributions for five luxury and five non-luxury car `Make`s. As we can see, Mercedes-Benz has a greater IQR than the other car makes. 
@@ -693,9 +695,12 @@ The two most significant features were `Year` and `Engine.HP`. This suggests tha
 
 # Conclusion
 
-Through this project we made a goal on predicting the MSRP based on car features. From there we cleaned our data and visualized our data to see what the predictors were telling us. We continued on with creating our training and testing sets and used models to see which one was the best by seeing which one had the lowest RMSE. The PCA Regression had the highest RMSE with a value of 9.558593, Stepwise Regression had the second highest RMSE with a value of 6.626349, third was Lasso Regression with a value of 6.583335, and last with the lowest RMSE was Random Forest with a value of 4.628497. We concluded Random Forest was the best model and used it on our testing set. The testing RMSE came out better than our training RMSE and also gave us which features are important when predicting RMSE. The significant features were year, engine horsepower, regular unleaded engine fuel type, and non luxury category.
+At the beginning of this project, we set out to predict the MSRP based on car features. After cleaning and visualizing the data, we learned more about the range of the values. We continued on with creating our training and testing sets with the four models: Stepwise Regression, Lasso Regression, Random Forest, and PCA Regression. After building and fitting the models, we compared them by RMSE. The PCA Regression had the highest RMSE (9.558593), Stepwise Regression followed with a value of 6.626349, then Lasso Regression with 6.583335, and finally Random Forest with the lowest RMSE of 4.628497.
+I was not surprised about Random Forest's performance due to its resilience to noise and high accuracy for predictions. However, I was surprised by Stepwise Regression as it wasn't that far off from the RMSE value of Random Forest.
 
-I was not surprised about Random Forest's performance because it has a high accuracy for predictions and it is resilient to noise. I was surprised by Stepwise Regression as it wasn't that far off from the RMSE value of Random Forest. 
+We concluded Random Forest was the best model and used it on our testing set. In addition to performing better than the other models, it provided the significant features, year, engine horsepower, regular unleaded engine fuel type, and non-luxury category. Overall, these insights can possibly help adults understand what features influence car prices and keep it in mind when buying a new car. 
+
+One limitation of this study was the lack of data on recent cars with technology. For future research, I would like to implement more predictors into the dataset such as, whether a car has Bluetooth, blind-spot monitoring, a back-up camera, sunroof, and more. These variables could provide insight whether technological advancements impact MSRP. Additionally, adding in another column to identify whether a car model is trending can help understand how trends shape the automobile market.  
 
 # Sources
 Kaggle. Car Features and Prices Dataset, Version 1.0, 2024, Kaggle, https://www.kaggle.com/datasets/rupindersinghrana/car-features-and-prices-dataset/data. 
