@@ -23,6 +23,8 @@ library(forcats)
 library(corrplot)
 library(tidymodels)
 library(vip)
+library(patchwork)
+library(car)
 ```
 
 ![image](~/Desktop/varietycars.jpg)
@@ -180,13 +182,15 @@ After training and comparing the model results on both trials, the NA trial demo
 To better understand the data, we're going to visualize predictors with a wide range of values. This is important as they create outliers in the data. Outliers are data values that significantly deviate from the majority of other values. 
 
 ```{r}
-ggplot(NA_car_data, aes(MSRP)) +
-  geom_boxplot(fill = "plum") + coord_flip() + labs(x = "MSRP (in thousands)")
-ggplot(NA_car_data, aes(highway.MPG)) +
-  geom_boxplot(fill = "powderblue") + coord_flip() + labs(x = "Highway MPG")
-ggplot(NA_car_data, aes(Engine.HP)) +
-  geom_boxplot(fill = "lavender") + coord_flip() + labs(x = "Engine Horse Power")
 
+MSRP_outliers <- ggplot(NA_car_data, aes(MSRP)) +
+  geom_boxplot(fill = "plum") + labs(x = "MSRP (in thousands)")
+Highway_outliers <- ggplot(NA_car_data, aes(highway.MPG)) +
+  geom_boxplot(fill = "powderblue") + labs(x = "Highway MPG")
+EngineHP_outliers <- ggplot(NA_car_data, aes(Engine.HP)) +
+  geom_boxplot(fill = "lavender")  + labs(x = "Engine Horse Power")
+combined_plot <- MSRP_outliers + Highway_outliers + EngineHP_outliers + plot_layout(ncol = 1)
+combined_plot
 ```
 
 As you can see the `MSRP` boxplot reveals significant outliers, with values ranging from approximately \$250,000 to \$2,000,000. In the `highway.MPG` variable, there is a single extreme outlier approximately 350 MPG, which is unrealistic. Lastly, `Engine.HP` has outliers ranging from 500 to 1,000 horse power. 
@@ -216,12 +220,14 @@ outliers_removed_car_NA <- NA_car_data %>%
 #install.packages("ggplot2")
 library(ggplot2)
 
-ggplot(outliers_removed_car_NA, aes(MSRP)) +
-  geom_boxplot(fill = "plum3") + coord_flip() + labs(x = "MSRP (in thousands)")
-ggplot(outliers_removed_car_NA, aes(highway.MPG)) +
-  geom_boxplot(fill = "powderblue") + coord_flip() + labs(x = "Highway MPG")
-ggplot(outliers_removed_car_NA, aes(Engine.HP)) +
-  geom_boxplot(fill = "lavender") + coord_flip() + labs(x = "Engine Horse Power")
+MSRP_noOutliers <- ggplot(outliers_removed_car_NA, aes(MSRP)) +
+  geom_boxplot(fill = "plum3") + labs(x = "MSRP (in thousands)")
+Highway_noOutliers <- ggplot(outliers_removed_car_NA, aes(highway.MPG)) +
+  geom_boxplot(fill = "powderblue") + labs(x = "Highway MPG")
+EngineHP_noOutliers <- ggplot(outliers_removed_car_NA, aes(Engine.HP)) +
+  geom_boxplot(fill = "lavender") + labs(x = "Engine Horse Power")
+noOutliers_plot <- MSRP_noOutliers + Highway_noOutliers + EngineHP_noOutliers + plot_layout(ncol = 1)
+noOutliers_plot
 ```
 
 Above are the same boxplots after applying the transformations to the data. Some outliers remain which are intentionally retain to preserve the high range of values. 
@@ -238,6 +244,7 @@ converted_car_data_NA <- outliers_removed_car_NA %>%
         Vehicle.Style = fct_lump(Vehicle.Style, n = 11, other_level = "Other"),
         Make = fct_lump(Make, n = 32, other_level = "Other"),
         MSRP = MSRP / 1000,
+        Transmission.Type = relevel(factor(Transmission.Type), ref = "AUTOMATIC"),
         Vehicle.Size = factor(Vehicle.Size),
         Vehicle.Style = factor(Vehicle.Style),
         Engine.Fuel.Type = factor(Engine.Fuel.Type),
@@ -284,39 +291,6 @@ ggplot(converted_car_data_NA, aes(x = Transmission.Type, y = MSRP)) +
 The boxplot visualizes the distribution of `MSRP` across different `Transmission.Type` categories.The median MSRP varies among transmission types, with "AUTOMATIC" and "AUTOMATED_MANUAL" having equal highest median. The interquartile range (IQR), which is the spread of the data, reveals that "DIRECT_DRIVE" has the narrowest price range, indicating consistency in pricing for this transmission type.
 
 Examining the whiskers,"MANUAL" has a longer spread toward the maximum, while "AUTOMATIC" displays an equal amount of spread toward the maximum and minimum values. Additionally, three out of the four transmissions have a good amount of outliers, highlighting the presence of cars with MSRP significantly above or below their boxplots.  
-
-### MSRP vs Make
-
-```{r}
-common_10 <- converted_car_data_NA %>% 
-  filter(Make %in% c("BMW", "Mercedes-Benz", "Lincoln", "Lexus", "Infiniti", "Honda", "Toyota", 
-                   "Nissan", "Ford", "Subaru"))
-ggplot(common_10, aes(x = Make, y = MSRP)) +
-  geom_boxplot(fill = "purple") + xlab("Car Make") + ylab("MSRP (in thousands)") + 
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-```
-
-The boxplots compare the `MSRP` distributions for five luxury and five non-luxury car `Make`s. As we can see, Mercedes-Benz has a greater IQR than the other car makes. 
-
-- Mercedes-Benz: The median `MSRP` is approximately \$42,000, with an IQR ranging from around \$5,000 and \$55,000. 
-
-- Toyota: The median `MSRP` is around \$30,000, with an IQR ranging from around \$23,000 and \$34,000 with an outlier around \$64,000. 
-
-### MSRP vs Category
-
-![image](~/Desktop/nonluxury&luxury.webp)
-(https://www.carpro.com/blog/toyota-bmw-are-the-most-shopped-luxury-and-non-luxury-car-brands)
-
-```{r}
-ggplot(converted_car_data_NA, aes(x = Category, y = MSRP)) +
-  geom_boxplot(fill = "coral") + ylim(0, 90) + ylab("MSRP (in thousands)")
-```
-
-The boxplots compare the distribution of `MSRP` to `Category`. This shows the distribution within luxury and non-luxury. 
-
-- Luxury: The median `MSRP` is approximately \$40,000, with an IQR range from around \$35,000 to \$52,000. The minimum `MSRP` is about $10,000 and maximum (excluding outliers) is around \$82,000. There are various amounts of outliers ranging from approximately \$83,000 to \$86,000. 
-
-- Non-luxury: The median `MSRP` is approximately \$26,000, with an IQR from around \$18,000 to \$33,000. The minimum `MSRP` is about \$3,000 and maximum (excluding outliers) is around \$52,000. There are various amounts of outliers ranging from about \$53,000 to \$85,000. 
 
 ### MSRP vs Year
 
@@ -418,6 +392,26 @@ pca_recipe_NA <- recipe(MSRP ~ ., data = NA_car_training) %>%
   step_center(all_predictors()) %>% 
   step_scale(all_predictors()) %>% 
   step_pca(all_predictors(), num_comp = 5)
+```
+
+## Stepwise Regression
+
+As you can see in the Stepwise Regression recipe, it doesn't have all the variables like the rest of the models. The variables were picked using backward selection. Backward selection is a variable selection method which starts with all the variables and removes the least significant variable and gives the AIC in each step. The AIC is the Akaike Information Criterion, it evaluates how well the model fits the data. 
+
+```{r}
+lumped_full_model_NA <- lm(MSRP ~ ., data = converted_car_data_NA) %>% 
+  stats::step(direction = "backward")
+```
+
+Now, we have the significant predictors based on the backward selection. It is time to check the VIF, Variance Inflation Factor. The VIF function measures the amount of multicollinearity in the regression equation. Multicollinearity is when two independent variables are correlated with each other. As you can see, there are some variables missing from the backward selection variables and the model_NA variable. I removed Model for its high quantity of categories which would increase the complexity of the stepwise model. Additionally, I removed `highway.MPG` because it was correlated with `city.mpg`
+between the two `highway.MPG` was more strongly connected to other variables.
+
+```{r}
+model_NA <- lm(MSRP ~ Make + Year + Engine.Fuel.Type + Engine.HP  + 
+    Transmission.Type + Driven_Wheels + Number.of.Doors + Market.Category + Vehicle.Size +
+    Vehicle.Style + city.mpg, data = converted_car_data_NA)
+vif_values_NA <- vif(model_NA)
+print(vif_values_NA)
 ```
 
 ## K-Fold Cross Validation
@@ -693,11 +687,11 @@ rforest_final_fit %>%
 
 The two most significant features were `Year` and `Engine.HP`. This suggests that newer cars, which often have more advanced technology, tend to have higher MSRPs. Similarly, cars with better performance give a better driving experience which demand higher MSRPs. Additionally other significant features include `Engine.Fuel.Type_regular.unleaded`, and `Category_Non.Luxury`, which demonstrates the influence of fuel type and affordability. These features indicate the importance of technological features, driving experience, fuel availability, and affordability when it comes to MSRP.  
 
-## 
+## Price Difference between Transmission Types
 
 ```{r}
-NA_car_training$Transmission.Type <- relevel(NA_car_training$Transmission.Type, ref = "MANUAL")
-
+coef(summary(model_NA))[grep("Transmission.Type", rownames(coef(summary(model_NA)))), ]
+summary(model_NA)
 ```
 
 
