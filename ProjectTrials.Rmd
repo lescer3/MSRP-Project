@@ -75,6 +75,7 @@ converted_car_data_NA <- outliers_removed_car_NA %>%
         Vehicle.Style = fct_lump(Vehicle.Style, n = 11, other_level = "Other"),
         Make = fct_lump(Make, n = 32, other_level = "Other"),
         MSRP = MSRP / 1000,
+        Transmission.Type = relevel(factor(Transmission.Type), ref = "AUTOMATIC"),
         Vehicle.Size = factor(Vehicle.Size),
         Vehicle.Style = factor(Vehicle.Style),
         Engine.Fuel.Type = factor(Engine.Fuel.Type),
@@ -84,6 +85,21 @@ converted_car_data_NA <- outliers_removed_car_NA %>%
         Model = factor(Model),
         Category = factor(Category)
     )
+```
+
+```{r}
+lumped_full_model_NA1 <- lm(MSRP ~ ., data = converted_car_data_NA) %>% 
+  stats::step(direction = "backward")
+```
+
+```{r}
+model_NA1 <- lm(MSRP ~ Make + Year + Engine.Fuel.Type + Engine.HP  + 
+    Transmission.Type + Driven_Wheels + Number.of.Doors + Market.Category + Vehicle.Size +
+    Vehicle.Style + city.mpg, data = converted_car_data_NA) #removed Model for having too many observations and highway mpg because multicol with city
+#levels(lumped_car_data$Market.Category)
+#alias(model)
+vif_values_NA1 <- vif(model_NA1)
+print(vif_values_NA1)
 ```
 
 
@@ -114,6 +130,12 @@ NA_car_testing <- testing(NA_car_split)
 
 NA_car_folds <- vfold_cv(NA_car_training, v = 5, strata = MSRP)
 ```
+
+```{r}
+levels(NA_car_training$Transmission.Type)
+levels(NA_car_testing$Transmission.Type)
+```
+
 
 ```{r}
 # stepwise model
@@ -177,7 +199,33 @@ NA_stepwise_metrics1
 
 
 ```{r}
-summary()
+summary(model_NA1)
+```
+
+```{r}
+#NA_car_training$Transmission.Type <- relevel(NA_car_training$Transmission.Type, ref = "MANUAL")
+
+```
+
+```{r}
+best_lasso_penalty <- select_best(lasso_tunegrid_NA, metric = "rmse")
+final_lasso_workflow <- finalize_workflow(lasso_workflow_NA, best_lasso_penalty)
+final_lasso_fit <- fit(final_lasso_workflow, data = NA_car_training)
+
+#lasso_coefficients <- coef(final_lasso_fit$fit$fit, s = best_penalty)
+#significant_lasso <- rownames(lasso_coefficients)[lasso_coefficients != 0]
+#print(significant_lasso)
+
+library(broom)
+lasso_coefficients <- final_lasso_fit %>%
+  extract_fit_parsnip() %>%
+  tidy() %>%
+  filter(estimate != 0)
+#lapply(recipes_ptype(lasso_recipe_NA), attributes)
+```
+
+```{r}
+
 ```
 
 
@@ -214,8 +262,8 @@ lasso_tunegrid_NA <- tune_grid(
   grid = lasso_grid_NA
 )
 
-save(lasso_tunegrid_NA, file = "lasso_tunegrid_NA.rda")
-load(lasso_tunegrid_NA)
+#save(lasso_tunegrid_NA, file = "lasso_tunegrid_NA.rda")
+#load(lasso_tunegrid_NA)
 
 autoplot(lasso_tunegrid_NA)
 
@@ -563,6 +611,14 @@ pca_metrics_NA
 ```
 
 ```{r}
+pca_model_NA <- pca_fit_NA %>% 
+  extract_fit_parsnip()
+
+summary(pca_model_NA)
+```
+
+
+```{r}
 pca__metrics_NA <- collect_metrics(pca_fit_NA) 
 pca__metrics_NA
 ```
@@ -905,5 +961,237 @@ identical(levels(NA_car_training$Make), levels(NA_car_testing$Make))
 identical(levels(NA_car_training$Vehicle.Style), levels(NA_car_testing$Vehicle.Style))
 identical(levels(NA_car_training$Market.Category), levels(NA_car_testing$Market.Category))
 
+```
+
+```{r}
+
+pca_recipe1 <- recipe(MSRP ~ ., data = NA_car_training) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_zv(all_predictors()) %>% 
+  step_center(all_numeric_predictors()) %>% 
+  step_scale(all_numeric_predictors())
+
+prep_pca <- prep(pca_recipe1, training = NA_car_training)
+standardized_pca <- bake(prep_pca, new_data = NULL)
+
+cov_matrix <- cov(standardized_pca)
+
+eigens <- eigen(cov_matrix)
+eigen_vectors <- eigens$vectors
+eigen_values <- eigens$values
+
+var_e <- eigen_values / sum(eigen_values)
+c_var_e <- cumsum(var_e)
+
+data.frame(
+  PC = seq_along(var_e),
+  Variance = var_e,
+  CumulativeVariance = c_var_e
+) %>% 
+  ggplot(aes(x = PC, y = CumulativeVariance)) + geom_line() +
+  geom_point()
+```
+
+```{r}
+library(recipes)
+
+pca_recipe2 <- recipe(MSRP ~ ., data = NA_car_training) %>%
+  step_dummy(all_nominal_predictors()) %>%  # One-hot encoding for categorical variables
+  step_zv(all_predictors()) %>%             # Remove zero-variance predictors
+  step_center(all_numeric_predictors()) %>% # Standardize numeric predictors
+  step_scale(all_numeric_predictors())
+
+
+prepped_recipe <- prep(pca_recipe2, training = NA_car_training)
+standardized_data <- bake(prepped_recipe, new_data = NULL)
+
+# Compute covariance matrix
+cov_matrix <- cov(standardized_data)
+
+eigen_decomp <- eigen(cov_matrix)
+
+# Eigenvalues and eigenvectors
+eigenvalues <- eigen_decomp$values
+eigenvectors <- eigen_decomp$vectors
+
+var_explained <- eigenvalues / sum(eigenvalues)
+cum_var_explained <- cumsum(var_explained)
+
+# Create a scree plot
+library(ggplot2)
+data.frame(
+  PC = seq_along(var_explained),
+  Variance = var_explained,
+  CumulativeVariance = cum_var_explained
+) %>%
+  ggplot(aes(x = PC, y = CumulativeVariance)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Cumulative Variance Explained",
+       x = "Principal Components",
+       y = "Cumulative Variance")
+
+pca_result <- prcomp(standardized_data, scale. = FALSE)
+variance_explained <- pca_result$sdev^2 / sum(pca_result$sdev^2)
+cumulative_variance <- cumsum(variance_explained)
+
+library(ggplot2)
+
+scree_data <- data.frame(
+    PC = 1:length(variance_explained),
+    Variance_Explained = variance_explained
+)
+
+ggplot(scree_data, aes(x = PC, y = Variance_Explained)) +
+    geom_line() +
+    geom_point() +
+    labs(title = "Scree Plot", x = "Principal Component", y = "Proportion of Variance Explained") +
+    theme_minimal() + xlim(0,5)
+```
+
+```{r}
+pca_recipe1 <- recipe(MSRP ~ ., data = NA_car_training) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_zv(all_predictors()) %>% 
+  step_center(all_numeric_predictors()) %>% 
+  step_scale(all_numeric_predictors()) %>% 
+  step_pca(all_numeric_predictors())
+
+prepped_recipe <- prep(pca_recipe1, training = NA_car_training)
+pca_data <- bake(prepped_recipe, new_data = NULL)
+
+pca_step <- prepped_recipe$steps[[length(prepped_recipe$steps)]]
+
+pca_variance <-pca_step$res$sdev^2
+var_explained <- pca_variance / sum(pca_variance)
+cum_var <- cumsum(var_explained)
+
+scree_data <- data.frame(
+  PC = 1:length(cum_var),
+  Variance_Explained = cum_var
+)
+
+ggplot(scree_data, aes(x = PC, y = Variance_Explained)) +
+    geom_line(color = "blue", size = 1) +
+  geom_point(color = "black", size = 3)
+```
+```{r}
+pca_recipe1 <- recipe(MSRP ~ ., data = NA_car_training) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_zv(all_predictors()) %>% 
+  step_center(all_numeric_predictors()) %>% 
+  step_scale(all_numeric_predictors())
+
+prepped_recipe <- prep(pca_recipe1, training = NA_car_training)
+pca_data <- bake(prepped_recipe, new_data = NULL)
+
+
+pca_results <- prcomp(pca_data, scale. = FALSE)
+
+pca_results$rotation <- -1 * pca_results$rotation
+pca_results$x <- -1 * pca_results$x
+
+head(pca_results$x)
+
+var_explained <- pca_results$sdev^2 / sum(pca_results$sdev^2)
+
+scree_data <- data.frame(
+    PC = 1:length(var_explained),
+    Variance_Explained = var_explained
+)
+
+#qplot(c(1:length(var_explained)), var_explained) + geom_line() + ylim(0,1)
+
+#scree_data <- data.frame(
+    #PC = 1:length(variance_explained),
+    #Variance_Explained = variance_explained
+#)
+
+ggplot(scree_data, aes(x = PC, y = Variance_Explained)) +
+   geom_line() +
+    geom_point() +
+    labs(title = "Scree Plot", x = "Principal Component", y = "Proportion of Variance Explained") +
+    theme_minimal() + xlim(0,10)
+```
+```{r}
+pca_recipe3 <- recipe(MSRP ~ ., data = NA_car_training) %>%
+  step_dummy(all_nominal_predictors()) %>%
+  step_zv(all_predictors()) %>%
+  step_center(all_numeric_predictors()) %>%
+  step_scale(all_numeric_predictors()) %>%
+  step_pca(all_numeric_predictors())
+
+prepped_pca3 <- prep(pca_recipe3, training = NA_car_training)
+pca_data3 <- bake(prepped_pca3, new_data = NULL)
+
+pca_step3 <- prepped_pca3$steps[[length(prepped_pca3$steps)]]
+
+pca_variance3 <- pca_step3$res$sdev^2
+var_explained3 <- pca_variance3 / sum(pca_variance3)
+
+pca_results3 <- prcomp(pca_data3, scale. = FALSE)
+
+pca_results3$rotation <- -1 * pca_results3$rotation
+pca_results3$x <- -1 * pca_results3$x
+
+head(pca_results3$x)
+
+var_explained3 <- pca_results3$sdev^2 / sum(pca_results3$sdev^2)
+
+scree_data3 <- data.frame(
+    PC = 1:length(var_explained3),
+    Variance_Explained = var_explained3
+)
+ggplot(scree_data3, aes(x = PC, y = Variance_Explained)) +
+   geom_line() +
+    geom_point() +
+    labs(title = "Scree Plot", x = "Principal Component", y = "Proportion of Variance Explained") +
+    theme_minimal() + xlim(0,12)
+```
+
+```{r}
+pca_recipe_ <- recipe(MSRP ~ ., data = NA_car_training) %>% 
+  step_other(Model, threshold = 0.001, other = "Other") %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_zv(all_predictors()) %>% 
+  step_center(all_numeric_predictors()) %>% 
+  step_scale(all_numeric_predictors())
+
+prepped_recipe_ <- prep(pca_recipe_, training = NA_car_training)
+pca_data_ <- bake(prepped_recipe_, new_data = NULL)
+
+
+pca_results_ <- prcomp(pca_data_, scale. = FALSE)
+
+pca_results_$rotation <- -1 * pca_results_$rotation
+pca_results_$x <- -1 * pca_results$x
+
+head(pca_results_$rotation)
+
+var_explained_ <- pca_results_$sdev^2 / sum(pca_results_$sdev^2)
+
+scree_data_ <- data.frame(
+    PC = 1:length(var_explained_),
+    Variance_Explained = var_explained_
+)
+
+ggplot(scree_data_, aes(x = PC, y = Variance_Explained)) +
+   geom_line() +
+    geom_point() +
+    labs(title = "Scree Plot", x = "Principal Component", y = "Proportion of Variance Explained") +
+    theme_minimal() + xlim(0,10)
+```
+```{r}
+#70
+dim(pca_data_)
+#dim(pca_data3)
+
+colnames(pca_data_)
+#colnames(pca_data3)
+
+#summary(prepped_recipe_)
+#dim(bake(prepped_recipe_, new_data = NULL))
+#dim(pca_results_$rotation)
+#dim(pca_results_$x)
 ```
 
