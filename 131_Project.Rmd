@@ -689,11 +689,13 @@ The two most significant features were `Year` and `Engine.HP`. This suggests tha
 
 ## Price Difference between Transmission Types
 
+It is time to find out if there is a significant price difference between transmission types. 
+
 ```{r}
-coef(summary(model_NA))[grep("Transmission.Type", rownames(coef(summary(model_NA)))), ]
 summary(model_NA)
 ```
 
+The summary table demonstrates how significant a variable is. Those that don't have a '*' or a '.' are not significant. Focusing only on the `Transmission.Type`, Transmission.TypeAUTOMATED_MANUAL and Transmission.TypeMANUAL are significant. Earlier in the data transformation, I made Transmission.TypeAUTOMATIC the reference category. I chose it as the reference category because it is the most common type of transmission in the market and owned. If we look at the estimates, we can see all of them are negative meaning the transmissions are less than automatic. Automated manual is -1.165, Direct drive is -2.719, and manual is -1.655 less than automatic. 
 
 # Conclusion
 
@@ -705,4 +707,11 @@ We concluded Random Forest was the best model and used it on our testing set. In
 One limitation of this study was the lack of data on recent cars with technology. For future research, I would like to implement more predictors into the dataset such as, whether a car has Bluetooth, blind-spot monitoring, a back-up camera, sunroof, and more. These variables could provide insight whether technological advancements impact MSRP. Additionally, adding in another column to identify whether a car model is trending can help understand how trends shape the automobile market.  
 
 # Sources
+
 Kaggle. Car Features and Prices Dataset, Version 1.0, 2024, Kaggle, https://www.kaggle.com/datasets/rupindersinghrana/car-features-and-prices-dataset/data. 
+
+“Understanding MSRP: A Guide to Manufacturer Pricing | Indeed.Com.” Indeed, www.indeed.com/career-advice/career-development/msrp. Accessed 03 Dec. 2024.
+
+“Which Transmission Type Is Right for You?” Dennis Dillon Mazda, www.dennisdillonmazda.com/. Accessed 03 Dec. 2024. 
+
+“Why Choose Led Car Dealership Lighting - Cree Lighting.” Why Choose LED Car Dealership Lighting - Cree Lighting, www.creelighting.com/insights/article/7-reasons-led-lighting-is-the-right-choice-for-automotive-dealerships/. Accessed 03 Dec. 2024. 
