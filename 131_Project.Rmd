@@ -5,16 +5,21 @@ date: "2024-10-26"
 output:
   pdf_document: default
   html_document: default
+  toc: true
+  toc_depth: 2
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_chunk$set(echo=TRUE, 
                       cache=FALSE, 
-                      fig.width=5, 
-                      fig.height=3,
+                      fig.width=6, 
+                      fig.height=4,
                       fig.align='center', 
                       eval=eval)
+```
+
+```{r, include=FALSE}
 library(dplyr)
 library(naniar)
 library(tidyr)
@@ -25,14 +30,15 @@ library(tidymodels)
 library(vip)
 library(patchwork)
 library(car)
+library(broom)
+library(stringr)
+library(DT)
 ```
 
-![image](~/Desktop/varietycars.jpg)
-(https://www.creelighting.com/insights/article/7-reasons-led-lighting-is-the-right-choice-for-automotive-dealerships/)
-![image](~/Desktop/price_car.jpg)
+![Car Price Tag](~/Desktop/price_car.jpg)
 
-
-(https://stock.adobe.com/search?k=car+price+tag)
+**Citation**
+“Car Price Tag.” Adobe Stock, stock.adobe.com/search?k=car%2Bprice%2Btag%29. Accessed 07 Dec. 2024. 
 
 # Introduction
 
@@ -43,17 +49,16 @@ The purpose of this project is to build a machine learning model to predict the 
 
 By examining the relationships between the predictors and MSRP, I aim to identify the factors that contribute to the price variations across models and quantify the impact of transmission types on MSRP. 
 
-![image](~/Desktop/MSRP1.pdf){width=30%}
+![MSRP](~/Desktop/MSRP1.pdf){width=30%}
 
-(https://www.cars.com/articles/what-does-msrp-mean-1420690419467/)
+**Citation**
+Conners, Angela. Monroney Sticker. Cars.com, https://www.cars.com/articles/what-does-msrp-mean-1420690419467/
 
 ## What is MSRP? 
 
 As an adult, I believe it is important to understand how a car’s features affect its MSRP. MSRP serves as the price the original producer of the car suggests the cost to be (Indeed Editorial Team).The main purpose of MSRP is to give distributors and retailers guidelines to maintain prices consistent and affordable for the majority of customers across locations. This also serves as the starting point for negotiations at the dealership.
 
 MSRP not only sets expectations around affordability, financing, and loan terms, but it also affects recurring expenses like insurance. In today’s economy, MSRP has been affected by inflation, supply chain disruptions, and technological advancements. Understanding these factors is crucial for making wise financial decisions, especially for new buyers who want to get the best value for their investment. This project will shed light on the factors that influence MSRP in the car industry. 
-
-![image](~/Desktop/IMG_2098.JPEG)
 
 ## Car Features and Pricing
 
@@ -63,15 +68,20 @@ The car's features! Car features are important factors that influence the price 
 
 ## Transmission Types and Pricing 
 
-An important feature to consider when buying a new car is the transmission type, as it impacts your driving experience, affordability, and fuel efficiency. Direct drive transmissions are fuel efficient when driving on a flat ground highway and are commonly found in electric vehicles (Eaton). Manual transmissions provide a more engaging driving experience and can save you money on fuel and maintenance. Automatic transmissions are more popular because they eliminate the need to change gears manually, though they are typically less fuel efficient (“Which Transmission Type Is Right for You?” Dennis Dillon Mazda). Automated manual transmissions combine the fuel efficiency of automatics and the cost-effectiveness of manuals (“Automated Manual Transmissions (AMT): Pros and Cons.”) This project will explore if there are price differences between transmissions.  
+An important feature to consider when buying a new car is the transmission type, as it impacts your driving experience, affordability, and fuel efficiency. Direct drive transmissions are fuel efficient when driving on a flat ground highway and are commonly found in electric vehicles (Eaton). Manual transmissions provide a more engaging driving experience and can save you money on fuel and maintenance. Automatic transmissions are more popular because they eliminate the need to change gears manually, though they are typically less fuel efficient (“Which Transmission Type Is Right for You?” Dennis Dillon Mazda). Automated manual transmissions combine the fuel efficiency of automatics and the cost-effectiveness of manuals (“Automated Manual Transmissions (AMT): Pros and Cons.”) This project will explore if there are significant price differences between transmissions.  
+
+![Variety of Cars](~/Desktop/varietycars.jpg){width=45%}
+
+**Citation**
+“7 Reasons LED Lighting Is the Right Choice for Automotive Dealerships.” Cree Lighting, 8 July 2022, www.creelighting.com/insights/article/7-reasons-led-lighting-is-the-right-choice-for-automotive-dealerships/. Accessed 07 Dec. 2024. 
 
 ## Data
 
-The data that will be used for this project contains detailed information about cars, including features, such as make, mode, year, engine specifications, MSRP, and more with approximately eleven thousand observations. This dataset comes from Kaggle, a platform for everyone to compete, collaborate, and learn, and was provided by user Rupinder Singh Rana (Rana). It includes different features of cars along with the price from 1990 to 2017, providing a historical overview on pricing trends as car advanced in technology. The dataset consists of numerical values, such as engine hp, highway mpg, etc. and categorical values, such as engine fuel type, transmission type, etc. 
+The data that will be used for this project contains detailed information about cars, including features, such as make, mode, year, engine specifications, MSRP, and more with approximately eleven thousand observations. This dataset comes from Kaggle, a platform for everyone to compete, collaborate, and learn, and was provided by user Rupinder Singh Rana (Rana,https://www.kaggle.com/datasets/rupindersinghrana/car-features-and-prices-dataset/data). It includes different features of cars along with the price from 1990 to 2017, providing a historical overview on pricing trends as car advanced in technology. The dataset consists of numerical values, such as engine hp, highway mpg, etc. and categorical values, such as engine fuel type, transmission type, etc. 
 
 # Explanatory Data Analysis 
 
-In this section, I am conducting Explanatory Data Analysis (EDA) to better understand the data and the variables that may influence the `MSRP` of cars. This is the stage where we are given insights into the structure and characteristics of the data, for instance missing values and outliers. 
+In this section, I am conducting Explanatory Data Analysis (EDA) to better understand the data and the variables that may influence the MSRP of cars. This is the stage where we are given insights into the structure and characteristics of the data, for instance missing values and outliers. 
 
 I will provide visuals on missing values, correlation matrices, and boxplots to give us an idea of what the data is providing. 
 
@@ -79,7 +89,6 @@ I will provide visuals on missing values, correlation matrices, and boxplots to 
 
 Firstly, I am going to load the dataset.
 ```{r}
-library(dplyr)
 car_data <- read.csv("~/Desktop/data.csv")
 car_data <- car_data %>% 
   mutate(Category = ifelse(Make %in% c("BMW", "Audi", "Mercedes-Benz", "Volvo", "Ferrari", 
@@ -88,8 +97,6 @@ car_data <- car_data %>%
           "Lotus", "Infiniti", "Genesis", "Bugatti"),
                          "Luxury",
                          "Non-Luxury"))
-
-head(car_data)
 ```
 
 Now, I am going to get the dataset's dimensions. This tells us the number of rows and columns.
@@ -256,7 +263,8 @@ We will explore some relationships between the predictors and MSRP.
 
 ```{r}
 ggplot(converted_car_data_NA, aes(x = MSRP)) +
-  geom_histogram(bins = 40, fill = "skyblue", color = "black") + labs(x = "MSRP (in thousands)", y = "Count")
+  geom_histogram(bins = 40, fill = "skyblue", color = "black") + 
+  labs(x = "MSRP (in thousands)", y = "Count")
 ```
 
 The histrogram visualizes the distribution of `MSRP` with a range from close to \$0 up to at least \$85,000. The distribution is right skewed meaning most vehicles have a lower MSRP. The largest mode is near \$0 to \$5,000, this indicates there is a significant amount of cars with low MSRP and there is a another cluster around \$20,000 to \$30,000. 
@@ -279,7 +287,8 @@ Examining the whiskers,"MANUAL" has a longer spread toward the maximum, while "A
 ```{r}
 ggplot(converted_car_data_NA, aes(x = factor(Year), y = MSRP)) +
   geom_point(alpha = 0.7, color = "darkgreen")  +
-  labs( x = "Year", y = "MSRP (in thousands)") + ylim(0,200) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  labs( x = "Year", y = "MSRP (in thousands)") + ylim(0,200) + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 ```
 
 Looking at the scatterplot of the distribution of `MSRP` and `Year`, we see an upward trend in the MSRP values over the years. After the year 2000, the prices dramatically increased suggesting vehicle prices increase every year. The significant increase could indicate factors such economic changes, advancements in technology, inflation, or an increase in demand.
@@ -336,8 +345,9 @@ For lasso regression, random forest, and PCA regression, all available predictor
 
 ```{r}
 #Stepwise Regression
-NA_stepwise_car_recipe <- recipe(MSRP ~ Make + Model + Year + Engine.Fuel.Type + Engine.HP + Engine.Cylinders + 
-    Transmission.Type + Driven_Wheels + Market.Category + Vehicle.Size + 
+NA_stepwise_car_recipe <- recipe(MSRP ~ Make + Model + Year + Engine.Fuel.Type + 
+          Engine.HP + Engine.Cylinders + Transmission.Type + Driven_Wheels + 
+            Market.Category + Vehicle.Size + 
     Vehicle.Style + city.mpg, data = NA_car_training) %>% 
   step_dummy(Make, Model, Engine.Fuel.Type, Transmission.Type, 
              Driven_Wheels, Market.Category, 
@@ -415,7 +425,7 @@ ggplot(scree_data_1, aes(x = PC, y = Variance_Explained)) +
      xlim(0,10)
 ```
 
-The Scree Plot demonstrates an elbow shape graph. This indicates the point at which additional components contribute little to the proportion of variance. Anything before the elbow point explains a significant proportion of the variance and should be kept, while components after contribute less and should not be kept. Based on this, we should only keep two principal components. 
+The Scree Plot demonstrates an elbow shape graph. This indicates the point at which additional components contribute little to the proportion of variance. The proportion of variance is the amount of total variation explained by each principal component (James, 503). by Anything before the elbow point explains a significant proportion of the variance and should be kept, while components after contribute less and should not be kept. Based on this, we should only keep two principal components. 
 
 ## K-Fold Cross Validation
 
@@ -430,7 +440,7 @@ NA_car_folds <- vfold_cv(NA_car_training, v = 5, strata = MSRP)
 
 In this section, we implement several models to predict `MSRP` and to learn more about the variables influencing car prices. We will build the model using the tidied data from earlier, prepare the training data, select appropriate models, train the models on the data, fine tune the parameters, and evaluate each model's performance. We then choose the model with the best metric. I will be using Root Mean Square Error (RMSE) as my metric for all of the models. RMSE is used to quantify how far predictions are from the true values. The lower the RMSE, the closer the predictions are from the true values and the higher the RMSE, the farther away the predictions are from the true values.
 
-As seen above in the recipe building, I will be using Stepwise Linear Regression, Lasso Regression, Random Forest, and PCA Regression. Each model contributes its own unique strengths: stepwise regression examines the significance of each variable (Hayes), lasso eliminates the less important predictors in the model by shrinking their coefficients to zero (“What Is Lasso Regression?”), random forest provides information about the significance of the predictors in the data (“What Are the Advantages and Disadvantages of Random Forest?”), and PCA regression reduces dimensionality (James, pg.253). 
+As seen above in the recipe building, I will be using Stepwise Linear Regression, Lasso Regression, Random Forest, and PCA Regression. Each model contributes its own unique strengths: stepwise regression examines the significance of each variable (Hayes), lasso eliminates the less important predictors in the model by shrinking their coefficients towards zero (“What Is Lasso Regression?”), random forest provides information about the significance of the predictors in the data (“What Are the Advantages and Disadvantages of Random Forest?”), and PCA regression reduces dimensionality (James, pg.253). 
 
 ## Fitting the Models 
 
@@ -464,7 +474,6 @@ rf_model_NA <- rand_forest(
 pca_model_NA <- linear_reg() %>% 
   set_engine("lm") %>% 
   set_mode("regression")
-
 ```
 
 2. Set up the workflow, add in the model and recipe.
@@ -498,10 +507,11 @@ pca_workflow_NA <- workflow() %>%
 lasso_grid_NA <- grid_regular(penalty(), levels = 30)
 
 #Random Forest
-rf_grid_NA <- grid_regular(mtry(range = c(1,5)),
-                        trees(range = c(200, 650)),
-                        min_n(range = c(5, 15)),
-                        levels = 10)
+#I commented out the rf code to avoid rerunning the grid_regular
+#rf_grid_NA <- grid_regular(mtry(range = c(1,5)),
+                        #trees(range = c(200, 650)),
+                        #min_n(range = c(5, 15)),
+                        #levels = 10)
 
 #No tuning for PCA Regression
 ```
@@ -519,12 +529,12 @@ lasso_tunegrid_NA <- tune_grid(
 )
 
 #Random Forest
-rf_tune_NA <- tune_grid(
-  rf_workflow_NA,
-  resamples = NA_car_folds,
-  grid = rf_grid_NA,
-  metrics = metric_set(rmse)
-)
+#rf_tune_NA <- tune_grid(
+  #rf_workflow_NA,
+  #resamples = NA_car_folds,
+  #grid = rf_grid_NA,
+  #metrics = metric_set(rmse)
+#)
 
 #PCA Regression
 pca_fit_NA <- fit_resamples(pca_workflow_NA, NA_car_folds)
@@ -538,7 +548,7 @@ pca_fit_NA <- fit_resamples(pca_workflow_NA, NA_car_folds)
 save(lasso_tunegrid_NA, file = "lasso_tunegrid_NA.rda")
 
 #Random Forest
-save(rf_tune_NA, file = "~/Desktop/rf_tune_NA.rda")
+#save(rf_tune_NA, file = "~/Desktop/rf_tune_NA.rda")
 
 #No tuning for PCA Regression 
 ```
@@ -554,6 +564,8 @@ load("~/Desktop/rf_tune_NA.rda")
 
 7. Collect the metrics from each model, filter rmse, arrange from ascending order, and slice to show the first result.
 ```{r}
+library(knitr)
+library(dplyr)
 #Stepwise Regression
 NA_stepwise_metrics <- collect_metrics(NA_stepwise_fit) %>% 
   filter(.metric == "rmse") %>% 
@@ -587,10 +599,12 @@ pca_metrics_NA <- collect_metrics(pca_fit_NA) %>%
 pca_metrics_NA
 ```
 
+These values indicate the hyperparameters that produced the smallest RMSE. 
+
 ## Model Autoplot 
 
 Stepwise Regression: 
-Stepwise Regression does not have model autoplot but was used as an inferential model to identify significant predictors of MSRP. The model began with all predictors and removed non-significant predictors using backward selection. The final model included `Make`, `Year`, `Engine.Fuel.Type`, `Engine.HP`,`Transmission.Type`, `Driven_Wheels`,`Market.Category`,`Vehicle.Size`,`Vehicle.Style`, and `city.mpg`. The model was tuned using 5-fold cross validation and achieved an RMSE of 6.339756.
+Stepwise Regression does not have model autoplot but was used as an inferential model to identify significant predictors of `MSRP`. The model began with all predictors and removed non-significant predictors using backward selection. The final model included `Make`, `Year`, `Engine.Fuel.Type`, `Engine.HP`,`Transmission.Type`, `Driven_Wheels`,`Market.Category`,`Vehicle.Size`,`Vehicle.Style`, and `city.mpg`. The model was tuned using 5-fold cross validation and achieved an RMSE of 6.34.
 
 ### Lasso
 ```{r}
@@ -599,7 +613,7 @@ autoplot(lasso_tunegrid_NA, metric = 'rmse')
 ```
 
 Lasso Regression: 
-Lasso Regression was used as a predictive model. The hyperparameter `penalty()` was tuned using 5-fold cross validation over a grid of 30 levels. The RMSE is low and stable when it is around 1e-08 to 1e-02. After 1e-02, the RMSE increases significantly. The best penalty was 0.001743329 with an RMSE of 6.320401.
+Lasso Regression was used as a predictive model. The hyperparameter `penalty()` was tuned using 5-fold cross validation over a grid of 30 levels. The `penalty()` function shrinks the coefficients towards zero (James, 241). The RMSE is low and stable when it is around 1e-08 to 1e-02. After 1e-02, the RMSE increases significantly. The best penalty was 0.00174 with an RMSE of 6.32.
 
 ### Random Forest
 ```{r}
@@ -608,10 +622,10 @@ autoplot(rf_tune_NA)
 ```
 
 Random Forest: 
-Random Forest was used to optimize prediction accuracy. The hyperparameters `mtry()`, `trees()`, and `min_n()` were tuned using grid regular: `mtry()` tested values from 1 to 5, `trees()` tested values from 200 to 650, and `min_n()` tested values from 5 to 15. The hyperparameters were tuned over a grid of 10 levels and 5-fold cross validation. The best `mtry` was 5, `trees` was 300, and `min_n` was 6 with an RMSE of 5.790814. As we can see, almost all of the minimal node sizes tend to have the same RMSE in each graph and the number of trees seems to not have an effect either. 
+Random Forest was used to optimize prediction accuracy. The hyperparameters `mtry()`, `trees()`, and `min_n()` were tuned using grid regular: `mtry()` tested values from 1 to 5, `trees()` tested values from 200 to 650, and `min_n()` tested values from 5 to 15. `mtry` specifies the number of randomly selected variables. `trees` specifies the number of individual decision trees generated in the random forest. `min_n` specifies the minimum number of data points required to keep splitting the nodes. The hyperparameters were tuned over a grid of 10 levels and 5-fold cross validation. The best `mtry` was 5, `trees` was 300, and `min_n` was 6 with an RMSE of 5.79. As we can see, almost all of the minimal node sizes tend to have the same RMSE in each graph and the number of trees seems to not have an effect either. 
 
 PCA Regression: 
-PCA Regression was used to reduce dimensionality while keeping the important predictors. The model had to begin with creating a scree plot, which told us how many principal components to keep. This was important because it showed us how many principal components contribute to the proportion of variance. The recipe was then updated and the model created. It had a RMSE of 12.10727.
+PCA Regression was used to reduce dimensionality while keeping the important predictors. The model had to begin with creating a scree plot, which told us how many principal components to keep. This was important because it showed us how many principal components contribute to the proportion of variance. The recipe was then updated and the model created. It had a RMSE of 12.10.
 
 # Model Results
 
@@ -641,13 +655,14 @@ print(all_metrics)
 
 As we can see Random Forest performed the best with the lowest RMSE. Our second best was Lasso Regression, third was Stepwise Regression, and last was PCA Regression. Something we can take from this is that Random Forest has the best prediction accuracy and handle large number of features (“Random Forest Regression.”)
 
-As mentioned above our best parameters were 300 trees and 6 minimal nodes with 5 predictors and an RMSE of 5.790814. 
+As mentioned above our best parameters were 300 trees and 6 minimal nodes with 5 predictors and an RMSE of 5.79. 
 
 ## Fitting Best Model
 
 Now that we have identified the model with the best RMSE, it will be used to make predictions on the testing data. The selected model will be trained  on the full training dataset using the best parameters obtained during tuning. 
 
 ```{r}
+set.seed(314)
 best_rf1 <- select_best(rf_tune_NA, metric = "rmse")
 
 rforest_final <- finalize_workflow(rf_workflow_NA, best_rf1)
@@ -667,7 +682,7 @@ metric_rf <- augment_rf %>%
 
 metric_rf %>% filter(.metric == "rmse")
 ```
-Woohoo! Our testing RMSE is lower than our training RMSE. This means the prediction was on average 5.74 away from the true value. 
+Woohoo! Our testing RMSE is lower than our training RMSE. This means the prediction was on average 5.73 away from the true value. 
 
 ```{r}
 ggplot(augment_rf, aes(x=.pred, y = MSRP)) + geom_point(alpha = 0.5) +
@@ -677,7 +692,7 @@ ggplot(augment_rf, aes(x=.pred, y = MSRP)) + geom_point(alpha = 0.5) +
        title = "Predicted Values vs True Values")
 ```
 
-The testing model performed well in predicting MSRP values, as most of the predicted values lie close to the diagonal slope. However, the predictions on the extreme ends of the MSRP range are further away from the line. This indicates the model was well-trained for cars priced between \$18,000 to \$42,000, but struggles with predicting MSRP values for cars priced significantly lower or higher. To get a more accurate predictions, we might need to focus more on either the lower or upper tails. 
+The testing model performed well in predicting MSRP values, as most of the predicted values lie close to the diagonal slope. However, the predictions on the extreme ends of the MSRP range are farther away from the line. This indicates the model was well-trained for cars priced between \$18,000 to \$42,000, but struggles with predicting MSRP values for cars priced significantly lower or higher. To get a more accurate predictions, we might need to focus more on either the lower or upper tails. 
 
 ## Variable Importance Plot
 
@@ -689,46 +704,72 @@ rforest_final_fit %>%
   vip(geom = "col", aesthetics = list(fill = "palegreen3", color = "black"))
 ```
 
-The two most significant features were `Year` and `Engine.HP`. This suggests that newer cars, which often have more advanced technology, tend to have higher MSRPs. Similarly, cars with better performance give a better driving experience which demand higher MSRPs. Additionally other significant features include `Engine.Fuel.Type_regular.unleaded`, and `Category_Non.Luxury`, which demonstrates the influence of fuel type and affordability. These features indicate the importance of technological features, driving experience, fuel availability, and affordability when it comes to MSRP.  
+The two most significant features were `Year` and `Engine.HP`. This suggests that newer cars, which often have more advanced technology, tend to have higher MSRPs. Similarly, cars with better performance give a better driving experience which demand higher MSRPs. Additionally other significant features include `Engine.Fuel.Type_regular.unleaded`, and `Category_Non.Luxury`, which demonstrate the influence of fuel type and affordability. These features indicate the importance of technological features, driving experience, fuel availability, and affordability when it comes to MSRP.  
 
 ## Price Difference between Transmission Types
 
 It is time to find out if there is a significant price difference between transmission types. 
 
 ```{r}
-summary(model_NA)
+tidy_model <- tidy(model_NA)
+transmission_summary <- tidy_model %>% 
+  filter(str_detect(term, "Transmission.Type"))
+transmission_summary
 ```
 
-The summary table demonstrates how significant a variable is. Those that don't have a '*' or a '.' are not significant. Focusing only on the `Transmission.Type`, `Transmission.TypeAUTOMATED_MANUAL` and `Transmission.TypeMANUAL` are significant. Earlier in the data transformation, I made `Transmission.TypeAUTOMATIC` the reference category. I chose it as the reference category because it is the most common type of transmission in the market and owned. If we look at the estimates, we can see all of them are negative meaning the transmissions are less than automatic in terms of MSRP. Automated manual is -7.911, Direct drive is -3.467, and manual is -1.333 less than automatic. 
+**Note:** 4.54e- 2 corresponds to 0.045, 4.43e- 1 corresponds to 0.44, and 3.27e-12 corresponds to 3.27e-12.
+
+The table represents a subset of the summary table focusing specifically on transmission type. I did this because the full summary table includes all the variables that are statistically significant to MSRP. As a reminder, a p-value less than 0.05 implies statistical significance. Earlier in the data transformation, I set `Transmission.TypeAUTOMATIC` as the reference category because it is the most common type of transmission in the market. Based on this reference, `Transmission.TypeAUTOMATED_MANUAL` and `Transmission.TypeMANUAL` are significant in relation to MSRP. 
+
+Direct Drive: -3.467
+The estimate of -3.467 means, on average, cars with Direct Drive transmissions are $3,467 lower in MSRP than cars with Automatic transmissions. The price difference is not significant, therefore not reliable. 
+
+Manual: -1.333 
+The estimate of -1.333 means, on average, cars with Manual transmissions are $1,333 lower in MSRP than cars with Automatic transmissions. The price difference between Manual and Automatic transmissions is significant.
+
+Automated Manual: -0.7911
+The estimate of -0.7911 means, on average, cars with Automated Manual transmissions are $791.10 lower in MSRP than cars with Automatic transmissions. The price difference between Automated Manual and Automatic transmissions is significant.
 
 # Conclusion
 
-At the beginning of this project, we set out to predict the MSRP based on car features. After cleaning and visualizing the data, we learned more about the range of the values. We continued on with creating our training and testing sets with the four models: Stepwise Regression, Lasso Regression, Random Forest, and PCA Regression. After building and fitting the models, we compared them by RMSE. The PCA Regression had the highest RMSE of 12.107270, Stepwise Regression followed with a value of 6.339756, then Lasso Regression with 6.320401, and finally Random Forest with the lowest RMSE of 5.790814.
+At the beginning of this project, we set out to predict the MSRP based on car features. After cleaning and visualizing the data, we learned more about the range of the values. We continued on with creating our training and testing sets with the four models: Stepwise Regression, Lasso Regression, Random Forest, and PCA Regression. After building and fitting the models, we compared them by RMSE. The PCA Regression had the highest RMSE of 12.10, Stepwise Regression followed with a value of 6.34, then Lasso Regression with 6.32, and finally Random Forest with the lowest RMSE of 5.79.
 I was not surprised about Random Forest's performance due to its resilience to noise and high accuracy for predictions. However, I was surprised by Stepwise Regression as it wasn't that far off from the RMSE value of Random Forest.
 
 We concluded Random Forest was the best model and used it on our testing set. In addition to performing better than the other models, it provided the significant features, year, engine horsepower, regular unleaded engine fuel type, and non-luxury category. Overall, these insights can possibly help adults understand what features influence car prices and keep it in mind when buying a new car. 
+
+In addition to being the second-best model in this project, Stepwise Regression offers a summary table demonstrating the significance of each variable in relation to MSRP. We found that cars with Automated Manual and Manual transmissions are statistically significant when compared to the reference category, Automatic transmissions. This makes their price differences meaningful. Cars with Automated Manual, on average, are \$791.10 lower in price than cars with Automatic transmissions. Similarly, cars with Manual transmissions are on average \$1,333 lower in price than cars with Automatic transmissions. In contrast, cars with Direct Drive transmissions, on average, are \$3,467 lower in price than cars with Automatic transmissions, but the difference is not significant. The price difference is not reliable. These results demonstrate how a car's transmission type can influence the price of the car. 
 
 One limitation of this study was the lack of data on recent cars with technology. For future research, I would like to implement more predictors into the dataset such as, whether a car has Bluetooth, blind-spot monitoring, a back-up camera, sunroof, and more. These variables could provide insight whether technological advancements impact MSRP.   
 
 # Sources
 
-“Automated Manual Transmissions (AMT): Pros and Cons.” Automatic Transmissions R Us, 30 Oct. 2024, www.autotransrus.com.au/blog/amt/#:~:text=AMT%20offers%20a%20compromise%20between,ease%20of%20use%20is%20compromised. Accessed 06 Dec. 2024. 
+“Automated Manual Transmissions (AMT): Pros and Cons.” Automatic Transmissions R Us, 30 Oct. 2024, www.autotransrus.com.au/blog/amt/#:~:text=AMT%20offers%20a%20compromise%20between,ease%20of%20use%20is
+%20compromised. Accessed 06 Dec. 2024. 
+
+“Car Price Tag.” Adobe Stock, stock.adobe.com/search?k=car%2Bprice%2Btag%29. Accessed 07 Dec. 2024. 
+
+Conners, Angela. Monroney Sticker. Cars.com, https://www.cars.com/articles/what-does-msrp-mean-1420690419467/
 
 Eaton. “Direct Drive or Overdrive?” Trucking Info, 7 Aug. 2014, www.truckinginfo.com/155143/direct-drive-or-overdrive#:~:text=It%20all%20depends%20on%20the,overdrive%20becomes%20a%20better%20fit. Accessed 06 Dec. 2024. 
 
 Hayes, Adam. “Stepwise Regression: Definition, Uses, Example, and Limitations.” Investopedia, 10 Jan. 2022, www.investopedia.com/terms/s/stepwise-regression.asp. Accessed 06 Dec. 2024. 
 
-Ibm. “What Is Lasso Regression?” IBM, 7 Aug. 2024, www.ibm.com/topics/lasso-regression#:~:text=Lasso%20regression%20can%20help%20to,important%20features%20from%20the%20model.&text=The%20bias%20introduced%20by%20the,shrink%20the%20coefficients%20towards%20zero. Accessed 06 Dec. 2024. 
+Ibm. “What Is Lasso Regression?” IBM, 7 Aug. 2024, www.ibm.com/topics/lasso-regression#:~:text=Lasso
+%20regression%20can%20help%20to,important%20features%20from%20the%20model.&
+text=The%20bias%20introduced%20by%20the,shrink%20the%20coefficients%20towards%20zero. Accessed 06 Dec. 2024. 
 
 Indeed Editorial Team. “Understanding MSRP: A Guide to Manufacturer Pricing .” Indeed.Com, www.indeed.com/career-advice/career-development/msrp. Accessed 06 Dec. 2024. 
 
-Jaadi, Zakaria. “Principal Component Analysis (PCA): A Step-by-Step Explanation.” Built In, builtin.com/data-science/step-step-explanation-principal-component-analysis#:~:text=Principal%20components%20are%20new%20variables,mixtures%20of%20the%20initial%20variables. Accessed 06 Dec. 2024. 
+Jaadi, Zakaria. “Principal Component Analysis (PCA): A Step-by-Step Explanation.” Built In, builtin.com/data-science/step-step-explanation-principal-component-analysis#:~:text=
+Principal%20components%20are%20new%20variables,mixtures%20of%20the%20initial%20variables. Accessed 06 Dec. 2024. 
 
 James, G., Witten, D., Hastie, T. and Tibshirani, R. (2021) An Introduction to Statistical Learning: With Applications in R. 2nd Edition, Springer, Berlin. https://www.statlearning.com
 
 Rana, Rupinder Singh. Kaggle. Car Features and Prices Dataset, Version 1.0, 2024, Kaggle, https://www.kaggle.com/datasets/rupindersinghrana/car-features-and-prices-dataset/data. 
 
 “Random Forest Regression.” HEAVY.AI Docs, docs.heavy.ai/heavyml-beta/regression-algorithms/random-forest-regression. Accessed 06 Dec. 2024. 
+
+“7 Reasons LED Lighting Is the Right Choice for Automotive Dealerships.” Cree Lighting, 8 July 2022, www.creelighting.com/insights/article/7-reasons-led-lighting-is-the-right-choice-for-automotive-dealerships/. Accessed 07 Dec. 2024. 
 
 “What Are the Advantages and Disadvantages of Random Forest?” AIML.Com, 22 May 2024, aiml.com/what-are-the-advantages-and-disadvantages-of-random-forest/. Accessed 06 Dec. 2024. 
 
