@@ -106,8 +106,11 @@ NA_stepwise_car_recipe2 <- recipe(MSRP ~ Make + Model + Year + Engine.Fuel.Type 
     Transmission.Type + Driven_Wheels + Market.Category + Vehicle.Size +
     Vehicle.Style + city.mpg, data = NA_car_training) %>% 
   step_dummy(Make, Model, Engine.Fuel.Type, Transmission.Type, Driven_Wheels, Market.Category,
-             Vehicle.Size, Vehicle.Style) 
+             Vehicle.Size, Vehicle.Style)
+```
 
+
+```{r}
 NA_stepwise_model2 <- linear_reg() %>% 
   set_engine("lm") %>% 
   set_mode("regression")
@@ -124,6 +127,10 @@ NA_stepwise_metrics2 <- collect_metrics(NA_stepwise_fit2) %>%
   slice_head(n=1)
 
 NA_stepwise_metrics2
+```
+
+```{r}
+
 ```
 
 ```{r}
@@ -256,55 +263,80 @@ ggplot(scree_data_2, aes(x = PC, y = Variance_Explained)) +
     theme_minimal() + xlim(0,10)
 ```
 ```{r}
-
+library(data.table)
 loadings <- pca_results_2$rotation
-pca_loadings_df <- as.data.frame(loadings)
-pca_loadings_df$Feature <- rownames(pca_loadings_df)
+top_10_pcs <- loadings[, 1:10]
+pca_loadings_df <- as.data.frame(top_10_pcs)
+pca_loadings_df$Feature <- rownames(loadings)
 
-loadings_reshape <- melt(pca_loadings_df, id.vars = "feature",
-                         vairbale.name = "Principal_Component",
-                         value.name = "Loading")
+tidy_loadings <- pivot_longer(pca_loadings_df, cols = starts_with("PC"),
+                              names_to = "Principal_Component",
+                              values_to = "Loading")
 
-loadings_reshape$Abs_Loading <- abs(loadings_reshape$Loading)
+ggplot(tidy_loadings, aes(x = reorder(Feature, abs(Loading)), y = abs(Loading),
+                          fill = Principal_Component)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~Principal_Component, scales = "free") + coord_flip() 
+#loadings_reshape <- melt(pca_loadings_df, id.vars = "Feature",
+                         #vairbale.name = "Principal_Component",
+                         #value.name = "Loading")
 
-ggplot(loadings_reshape[loadings_reshape$Principal_Component %in% paste0("PC", 1:10), ],
-       aes(x = Principal_Component, y = Abs_Loading, fill = Feature)) + 
-  geom_bar(stat = "identity", position = "dodge")
+#loadings_reshape$Abs_Loading <- abs(loadings_reshape$Loading)
+
+#ggplot(loadings_reshape[loadings_reshape$Principal_Component %in% paste0("PC", 1:10), ],
+       #aes(x = Principal_Component, y = Abs_Loading, fill = Feature)) + 
+  #geom_bar(stat = "identity", position = "dodge")
 ```
 
 
 ```{r}
-colnames(pca_data_2)
+#colnames(pca_data_2)
+colnames(pca_loadings_df)
 ```
+
 ```{r}
-pca_recipe_21 <- recipe(MSRP ~ ., data = NA_car_training) %>% 
+library(reshape2)
+
+
+heatmap_data <- as.data.frame(pca_results_2$rotation[, 1:10])  # First 10 PCs
+heatmap_data$Feature <- rownames(pca_results_2$rotation)
+heatmap_data <- melt(heatmap_data, id.vars = "Feature", variable.name = "PC", value.name = "Loading")
+
+
+ggplot(heatmap_data, aes(x = PC, y = Feature, fill = Loading)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0) +
+  labs(title = "Feature Contributions to Principal Components", x = "Principal Component", y = "Feature") +
+  theme_minimal()
+```
+
+```{r}
+pca_recipe_NA1 <- recipe(MSRP ~ ., data = NA_car_training) %>% 
   step_dummy(all_nominal_predictors()) %>% 
   step_zv(all_predictors()) %>% 
-  step_center(all_numeric_predictors()) %>% 
-  step_scale(all_numeric_predictors(), num_comp = 10)
+  step_center(all_predictors()) %>% 
+  step_scale(all_predictors()) %>% 
+  step_pca(all_predictors(), num_comp = 2)
 
-prepped_recipe_21 <- prep(pca_recipe_21, training = NA_car_training)
-pca_data_21 <- bake(prepped_recipe_21, new_data = NULL)
+pca_model_NA1 <- linear_reg() %>% 
+  set_engine("lm") %>% 
+  set_mode("regression")
 
+pca_workflow_NA1 <- workflow() %>% 
+  add_model(pca_model_NA1) %>% 
+  add_recipe(pca_recipe_NA1) 
 
-pca_results_21 <- prcomp(pca_data_2, scale. = FALSE)
+pca_fit_NA1 <- fit_resamples(pca_workflow_NA1, NA_car_folds)
 
-pca_results_21$rotation <- -1 * pca_results_21$rotation
-pca_results_21$x <- -1 * pca_results_21$x
+pca_metrics_NA1 <- collect_metrics(pca_fit_NA1) %>% 
+  filter(.metric == "rmse") %>% 
+  arrange(mean) %>% 
+  slice_head(n=1)
 
-head(pca_results_21$rotation)
-
-var_explained_21 <- pca_results_21$sdev^2 / sum(pca_results_21$sdev^2)
-
-scree_data_21 <- data.frame(
-    PC = 1:length(var_explained_21),
-    Variance_Explained = var_explained_21
-)
-
-ggplot(scree_data_21, aes(x = PC, y = Variance_Explained)) +
-   geom_line() +
-    geom_point() +
-    labs(title = "Scree Plot", x = "Principal Component", y = "Proportion of Variance Explained") +
-    theme_minimal() + xlim(0,10)
+pca_metrics_NA1
 ```
-
+```{r}
+car_data %>% 
+  head()
+```
+The `head()` function prints the first six rows of the dataset. Most of the columns represent various car features, such as make, model, year, and engine fuel type. One column represents the MSRP.
