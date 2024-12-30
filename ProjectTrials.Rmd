@@ -119,6 +119,26 @@ model_NA <- lm(MSRP ~ Make + Year + Engine.Fuel.Type + Engine.HP  +
 vif_values_NA <- vif(model_NA)
 print(vif_values_NA)
 ```
+```{r}
+par(mfrow = c(3, 1))  # 3 rows, 1 column
+
+# Boxplot for MSRP
+boxplot(NA_car_data$MSRP, horizontal = TRUE, col = "plum",
+        xlab = "MSRP (in thousands)", main = "MSRP")
+
+# Boxplot for Highway MPG
+boxplot(NA_car_data$highway.MPG, horizontal = TRUE, col = "powderblue",
+        xlab = "Highway MPG", main = "Highway MPG")
+
+# Boxplot for Engine HP
+boxplot(NA_car_data$Engine.HP, horizontal = TRUE, col = "lavender",
+        xlab = "Engine Horse Power", main = "Engine HP")
+
+# Reset mfrow to default
+par(mfrow = c(1, 1))
+
+#mfrow
+```
 
 ```{r}
 set.seed(314)
