@@ -9,7 +9,6 @@ The purpose of this project is to build a machine learning model to predict the 
 ## Data
 This project uses the Car Features and Prices Dataset from Kaggle provided by Rupinder Singh Rana, which includes approximately 12 thousand observations, 16 columns, and has 28 years of data from 1990 to 2017. Here are the following columns:
 
-## Variables:
 - Make: The company that produces the vehicle
 - Model: The product name of the vehicle used by the manufacturer
 - Year: The year the vehicle was made
