@@ -49,6 +49,7 @@ Stepwise Regression was used to identify the most significant features for predi
 - Vehicle size
 - Vehicle style
 - City miles per gallon (MPG)
+  
 These features were selected after running backward selection combined with the Variance Inflation Factor (VIF) function to ensure multicollinearity was minimized. This method helped o avoid overfitting and improve the model's predictive power. 
 
 ### Lasso Regression
